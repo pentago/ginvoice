@@ -317,6 +317,24 @@ td:has(> :is([data-status])) {
   color: #065f46;
 }
 
+/* --- Alerts (email feedback) --- */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+.alert-success {
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+.alert-error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
 /* --- Misc --- */
 small {
   color: #64748b;

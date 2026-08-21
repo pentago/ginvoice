@@ -1,9 +1,7 @@
-// Package pdf renders invoices as PDF documents using maroto v2 and
-// optimizes them with pdfcpu.
+// Package pdf renders invoices as PDF documents using maroto v2.
 package pdf
 
 import (
-	"bytes"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -19,8 +17,6 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/core"
 	"github.com/johnfercher/maroto/v2/pkg/props"
 	"github.com/johnfercher/maroto/v2/pkg/consts/extension"
-	"github.com/pdfcpu/pdfcpu/pkg/api"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 
 	"ginvoice/internal/store"
 )
@@ -36,23 +32,6 @@ func formatMoney(cents int64, currency string) string {
 	return currency + " " + amount
 }
 
-// OptimizeBytes runs pdfcpu's optimize pass (font/image dedup + object
-// streams) over in-memory PDF bytes.
-func init() {
-	// Disable pdfcpu's config file loading. It tries to create $HOME/.config/pdfcpu/
-	// which fails in read-only containers. We only use the optimize pass, which
-	// works fine with built-in defaults.
-	model.ConfigPath = "disable"
-}
-
-func OptimizeBytes(input []byte) ([]byte, error) {
-	r := bytes.NewReader(input)
-	var buf bytes.Buffer
-	if err := api.Optimize(r, &buf, nil); err != nil {
-		return nil, fmt.Errorf("pdfcpu optimize: %w", err)
-	}
-	return buf.Bytes(), nil
-}
 
 // RenderInvoice generates a compressed PDF for the given invoice and company.
 func RenderInvoice(inv store.Invoice, company store.Company) ([]byte, error) {

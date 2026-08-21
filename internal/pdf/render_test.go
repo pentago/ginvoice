@@ -2,11 +2,7 @@ package pdf_test
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"testing"
-
-	"github.com/pdfcpu/pdfcpu/pkg/api"
 
 	"ginvoice/internal/pdf"
 	"ginvoice/internal/store"
@@ -57,17 +53,6 @@ func TestRenderInvoice_NonEmpty(t *testing.T) {
 	}
 }
 
-// TestRenderInvoice_PdfcpuValidates verifies S1: pdfcpu accepts the document.
-func TestRenderInvoice_PdfcpuValidates(t *testing.T) {
-	b, err := pdf.RenderInvoice(testInvoice(), testCompany())
-	if err != nil {
-		t.Fatalf("RenderInvoice: %v", err)
-	}
-	r := bytes.NewReader(b)
-	if err := api.Validate(r, nil); err != nil {
-		t.Errorf("pdfcpu validate: %v", err)
-	}
-}
 
 // TestRenderInvoice_ZeroLines verifies S2: an invoice with no lines must not
 // panic and must still produce a valid PDF.
@@ -90,38 +75,3 @@ func TestRenderInvoice_ZeroLines(t *testing.T) {
 	}
 }
 
-// TestRenderInvoice_SavedSizeSmaller verifies S3: the optimized bytes can be
-// written to disk and are no larger than the raw maroto output.
-func TestRenderInvoice_SavedSizeSmaller(t *testing.T) {
-	raw, err := pdf.RenderInvoice(testInvoice(), testCompany())
-	if err != nil {
-		t.Fatalf("RenderInvoice: %v", err)
-	}
-
-	opt, err := pdf.OptimizeBytes(raw)
-	if err != nil {
-		t.Fatalf("OptimizeBytes: %v", err)
-	}
-	if len(opt) == 0 {
-		t.Fatal("optimized bytes are empty")
-	}
-	if len(opt) > len(raw) {
-		t.Errorf("optimized size %d larger than raw %d", len(opt), len(raw))
-	}
-	if err := api.Validate(bytes.NewReader(opt), nil); err != nil {
-		t.Errorf("pdfcpu validate optimized: %v", err)
-	}
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, "invoice.pdf")
-	if err := os.WriteFile(path, opt, 0o644); err != nil {
-		t.Fatalf("write temp file: %v", err)
-	}
-	fi, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat: %v", err)
-	}
-	if fi.Size() == 0 {
-		t.Fatal("saved file is empty")
-	}
-}

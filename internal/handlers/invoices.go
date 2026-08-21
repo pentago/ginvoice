@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html"
 	"log"
 	"net/http"
 	"os"
@@ -386,19 +387,11 @@ func (h *InvoicesHandler) invoicePDF(w http.ResponseWriter, r *http.Request, id 
 		return nil, "", false
 	}
 
-	optimized, err := pdf.OptimizeBytes(raw)
-	if err != nil {
-		log.Printf("optimize invoice %d pdf: %v", id, err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return nil, "", false
-	}
-
 	number := filepath.Base(inv.Number) // defensive: number is DB-generated
-	return optimized, number, true
+	return raw, number, true
 }
 
-// DownloadPDF handles GET /invoices/{id}/pdf — streams the optimized PDF as
-// an attachment download.
+// DownloadPDF handles GET /invoices/{id}/pdf — streams the PDF as an attachment download.
 func (h *InvoicesHandler) DownloadPDF(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.pathID(w, r)
 	if !ok {
@@ -462,45 +455,43 @@ func (h *InvoicesHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 
 	inv, err := store.GetInvoiceWithLines(h.DB, id)
 	if err != nil {
-		h.invoiceError(w, r, err)
+		if errors.Is(err, sql.ErrNoRows) {
+			writeEmailAlert(w, "error", "invoice not found")
+		} else {
+			log.Printf("get invoice %d for email: %v", id, err)
+			writeEmailAlert(w, "error", "internal error")
+		}
 		return
 	}
 
 	company, _, err := store.GetCompany(h.DB)
 	if err != nil {
 		log.Printf("get company for invoice email: %v", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		writeEmailAlert(w, "error", "internal error")
 		return
 	}
 
 	if inv.Client.Email == "" {
-		http.Error(w, "client has no email address", http.StatusBadRequest)
+		writeEmailAlert(w, "error", "client has no email address")
 		return
 	}
 
 	if h.Cfg.ResendAPIKey == "" {
-		http.Error(w, "email not configured", http.StatusServiceUnavailable)
+		writeEmailAlert(w, "error", "email not configured \u2014 set GINVOICE_RESEND_API_KEY")
 		return
 	}
 
 	raw, err := pdf.RenderInvoice(inv, company)
 	if err != nil {
 		log.Printf("render invoice %d pdf: %v", id, err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	pdfBytes, err := pdf.OptimizeBytes(raw)
-	if err != nil {
-		log.Printf("optimize invoice %d pdf: %v", id, err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		writeEmailAlert(w, "error", "failed to render PDF")
 		return
 	}
 
 	const maxAttachmentBytes = 40 * 1024 * 1024 // Resend limit is 40MB after base64 encoding
-	encodedLen := base64.StdEncoding.EncodedLen(len(pdfBytes))
+	encodedLen := base64.StdEncoding.EncodedLen(len(raw))
 	if encodedLen > maxAttachmentBytes {
-		http.Error(w, "attachment too large", http.StatusRequestEntityTooLarge)
+		writeEmailAlert(w, "error", "attachment too large to send")
 		return
 	}
 
@@ -532,10 +523,10 @@ func (h *InvoicesHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 		InvoiceDueDate: inv.DueDate,
 	}
 	subject := email.RenderTemplate(subjectTmpl, tmplData)
-	html := email.RenderTemplate(bodyTmpl, tmplData)
-	if err := h.Sender.Send(r.Context(), inv.Client.Email, subject, html, inv.Number+".pdf", pdfBytes); err != nil {
+	htmlBody := email.RenderTemplate(bodyTmpl, tmplData)
+	if err := h.Sender.Send(r.Context(), inv.Client.Email, subject, htmlBody, inv.Number+".pdf", raw); err != nil {
 		log.Printf("send invoice %d email to %s: %v", id, inv.Client.Email, err)
-		http.Error(w, "email send failed", http.StatusBadGateway)
+		writeEmailAlert(w, "error", "email send failed: "+err.Error())
 		return
 	}
 
@@ -543,11 +534,19 @@ func (h *InvoicesHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 		`UPDATE invoices SET status='sent', sent_at=datetime('now'), updated_at=datetime('now') WHERE id=?`,
 		id); err != nil {
 		log.Printf("mark invoice %d sent: %v", id, err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		writeEmailAlert(w, "error", "email sent but failed to update invoice status")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, `{"status":"sent"}`+"\n")
+	fmt.Fprintf(w, `<div class="alert alert-success">Email sent to %s</div>`, html.EscapeString(inv.Client.Email))
+	fmt.Fprint(w, `<span id="status-badge" class="badge badge-sent" hx-swap-oob="outerHTML">sent</span>`)
+	fmt.Fprint(w, `<span id="email-btn" hx-swap-oob="outerHTML"></span>`)
+}
+
+func writeEmailAlert(w http.ResponseWriter, class, msg string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `<div class="alert alert-%s">%s</div>`, class, html.EscapeString(msg))
 }

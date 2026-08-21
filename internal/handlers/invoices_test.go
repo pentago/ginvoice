@@ -534,17 +534,17 @@ func seedDraftInvoice(t *testing.T, db *sql.DB, clientEmail string) int64 {
 }
 
 // S2: no Resend API key configured → 503 and no send attempt.
-func TestEmail_503WhenKeyUnset(t *testing.T) {
+func TestEmail_ErrorWhenKeyUnset(t *testing.T) {
 	srv, db, fake := newEmailTestServer(t, "")
 	id := seedDraftInvoice(t, db, "client@example.com")
 
 	resp := postForm(t, srv.URL+fmt.Sprintf("/invoices/%d/email", id), url.Values{})
-	if resp.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("email without API key: status = %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("email without API key: status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "email not configured") {
-		t.Errorf("body = %q, want it to contain 'email not configured'", string(body))
+	if !strings.Contains(string(body), "alert-error") || !strings.Contains(string(body), "email not configured") {
+		t.Errorf("body = %q, want alert-error with 'email not configured'", string(body))
 	}
 	if len(fake.Calls) != 0 {
 		t.Errorf("sender called %d times, want 0", len(fake.Calls))
@@ -552,17 +552,17 @@ func TestEmail_503WhenKeyUnset(t *testing.T) {
 }
 
 // S3: client has no email address → 400 and no send attempt.
-func TestEmail_400WhenNoClientEmail(t *testing.T) {
+func TestEmail_ErrorWhenNoClientEmail(t *testing.T) {
 	srv, db, fake := newEmailTestServer(t, "re_test_key")
 	id := seedDraftInvoice(t, db, "")
 
 	resp := postForm(t, srv.URL+fmt.Sprintf("/invoices/%d/email", id), url.Values{})
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("email for client without address: status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("email for client without address: status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "client has no email address") {
-		t.Errorf("body = %q, want it to contain 'client has no email address'", string(body))
+	if !strings.Contains(string(body), "alert-error") || !strings.Contains(string(body), "client has no email address") {
+		t.Errorf("body = %q, want alert-error with 'client has no email address'", string(body))
 	}
 	if len(fake.Calls) != 0 {
 		t.Errorf("sender called %d times, want 0", len(fake.Calls))
@@ -579,8 +579,8 @@ func TestEmail_SendsAndMarksSent(t *testing.T) {
 		t.Fatalf("email send: status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), `"status":"sent"`) {
-		t.Errorf("body = %q, want it to contain status sent", string(body))
+	if !strings.Contains(string(body), "alert-success") || !strings.Contains(string(body), "Email sent to") {
+		t.Errorf("body = %q, want alert-success with 'Email sent to'", string(body))
 	}
 
 	if len(fake.Calls) != 1 {
@@ -616,18 +616,18 @@ func TestEmail_SendsAndMarksSent(t *testing.T) {
 }
 
 // S4: sender failure → 502 and invoice stays draft.
-func TestEmail_502OnSendFailure(t *testing.T) {
+func TestEmail_ErrorOnSendFailure(t *testing.T) {
 	srv, db, fake := newEmailTestServer(t, "re_test_key")
 	id := seedDraftInvoice(t, db, "client@example.com")
 	fake.Err = fmt.Errorf("resend HTTP 500")
 
 	resp := postForm(t, srv.URL+fmt.Sprintf("/invoices/%d/email", id), url.Values{})
-	if resp.StatusCode != http.StatusBadGateway {
-		t.Fatalf("email send failure: status = %d, want %d", resp.StatusCode, http.StatusBadGateway)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("email send failure: status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "email send failed") {
-		t.Errorf("body = %q, want it to contain 'email send failed'", string(body))
+	if !strings.Contains(string(body), "alert-error") || !strings.Contains(string(body), "email send failed") {
+		t.Errorf("body = %q, want alert-error with 'email send failed'", string(body))
 	}
 
 	inv, err := store.GetInvoice(db, id)

@@ -189,13 +189,14 @@ templ InvoicePage(inv store.Invoice) {
 			<meta charset="utf-8"/>
 			<title>{ inv.Number } — ginvoice</title>
 			<link rel="stylesheet" href="/static/style.css"/>
+			<script src="/static/htmx.min.js"></script>
 		</head>
 		<body>
 			@Nav()
 			<main class="container">
 				<h1>Invoice { inv.Number }</h1>
 				<div class="invoice-details">
-					<p><strong>Status:</strong> <span class={ "badge badge-" + inv.Status }>{ inv.Status }</span></p>
+					<p><strong>Status:</strong> <span id="status-badge" class={ "badge badge-" + inv.Status }>{ inv.Status }</span></p>
 					<p><strong>Client:</strong> { inv.Client.Name }</p>
 					if inv.Client.Email != "" {
 						<p><strong>Email:</strong> { inv.Client.Email }</p>
@@ -247,13 +248,15 @@ templ InvoicePage(inv store.Invoice) {
 				}
 					<a href={ templ.URL(fmt.Sprintf("/invoices/%d/pdf", inv.ID)) } class="btn btn-warning">Download PDF</a>
 				if inv.Status == "draft" && inv.Client.Email != "" {
-					<button
+					<button id="email-btn"
 						hx-post={ templ.URL(fmt.Sprintf("/invoices/%d/email", inv.ID)) }
-						hx-swap="none"
+						hx-target="#email-result"
+						hx-swap="innerHTML"
 						hx-confirm={ fmt.Sprintf("Email this invoice to %s?", inv.Client.Email) }
 						class="btn btn-success"
 					>Email Invoice</button>
 				}
+					<div id="email-result"></div>
 				<a href="/invoices" class="btn btn-secondary">Back to Invoices</a>
 			</div>
 			</main>
