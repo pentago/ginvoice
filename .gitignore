@@ -1,0 +1,11 @@
+bin/
+data/
+*.db
+*.db-wal
+*.db-shm
+vendor/
+.codegraph/
+.opencode/
+.omo/
+.playwright*
+.env

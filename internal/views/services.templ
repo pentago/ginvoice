@@ -1,0 +1,127 @@
+package views
+
+import (
+	"fmt"
+
+	"ginvoice/internal/store"
+)
+
+// formatCents renders integer cents as a decimal currency string (1999 -> "19.99").
+func formatCents(cents int64) string {
+	return fmt.Sprintf("%.2f", float64(cents)/100)
+}
+
+// ServicesPage lists the services catalog with edit/delete actions.
+templ ServicesPage(services []store.Service) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<title>Services</title>
+			<link rel="stylesheet" href="/static/style.css"/>
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body>
+			@Nav()
+			<main class="container">
+				<h1>Services</h1>
+				<p><a href="/services/new" class="btn btn-success">Add service</a></p>
+				if len(services) == 0 {
+					<p>No services yet.</p>
+				} else {
+					<table>
+						<thead>
+							<tr>
+								<th>Name</th>
+								<th>Description</th>
+								<th>Unit</th>
+								<th>Price</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, s := range services {
+								<tr>
+									<td>{ s.Name }</td>
+									<td>{ s.Description }</td>
+									<td>{ s.Unit }</td>
+									<td>{ formatCents(s.DefaultUnitPrice) }</td>
+									<td>
+								<div class="action-buttons">
+									<a href={ fmt.Sprintf("/services/%d/edit", s.ID) } class="btn btn-secondary">Edit</a>
+									<form method="post" action={ fmt.Sprintf("/services/%d/delete", s.ID) } class="action-form">
+										<button type="submit" class="btn btn-danger">Delete</button>
+									</form>
+								</div>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				}
+		</main>
+	</body>
+	</html>
+}
+
+// NewServicePage wraps a blank ServiceForm for creating a service.
+templ NewServicePage() {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<title>New service</title>
+			<link rel="stylesheet" href="/static/style.css"/>
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body>
+			@Nav()
+			<main class="container">
+				<h1>New service</h1>
+				@ServiceForm(store.Service{}, "/services")
+		</main>
+	</body>
+	</html>
+}
+
+// EditServicePage wraps a pre-filled ServiceForm for updating a service.
+templ EditServicePage(s store.Service) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<title>Edit service</title>
+			<link rel="stylesheet" href="/static/style.css"/>
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body>
+			@Nav()
+			<main class="container">
+				<h1>Edit service</h1>
+				@ServiceForm(s, fmt.Sprintf("/services/%d", s.ID))
+		</main>
+	</body>
+	</html>
+}
+
+// ServiceForm is the shared add/edit form. action is the POST target
+// ("/services" to create, "/services/{id}" to update). The price is submitted
+// as a decimal string and parsed to integer cents by the handler.
+templ ServiceForm(s store.Service, action string) {
+	<form method="post" action={ action } class="card">
+		<label for="name">Name</label>
+		<input type="text" id="name" name="name" value={ s.Name } required/>
+
+		<label for="description">Description *</label>
+		<textarea id="description" name="description" required>{ s.Description }</textarea>
+
+		<label for="unit">Unit</label>
+		<input type="text" id="unit" name="unit" value={ s.Unit } placeholder="item"/>
+
+		<label for="unit_price">Price *</label>
+		<input type="number" step="0.01" min="0" id="unit_price" name="unit_price" value={ formatCents(s.DefaultUnitPrice) } required/>
+
+		<button type="submit">Save</button>
+		<a href="/services" class="btn btn-secondary">Cancel</a>
+	</form>
+}

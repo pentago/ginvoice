@@ -1,0 +1,158 @@
+package views
+
+import "ginvoice/internal/store"
+import "ginvoice/internal/email"
+import "fmt"
+
+templ SettingsPage(c store.Company) {
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<title>Settings — ginvoice</title>
+		<link rel="stylesheet" href="/static/style.css"/>
+		<script src="/static/htmx.min.js"></script>
+	</head>
+	<body>
+		@Nav()
+		<main class="container">
+			<h1>Company Settings</h1>
+			@SettingsForm(c)
+		</main>
+		<script>
+			(function() {
+				var lb = '{' + '{';
+				var rb = '}' + '}';
+
+				function renderPreview() {
+					var body = document.querySelector('textarea[name="default_email_body"]');
+					var subjInput = document.querySelector('input[name="default_email_subject"]');
+					var preview = document.getElementById('email-preview');
+					if (!body || !preview) return;
+					var name = document.querySelector('input[name="name"]');
+					var ofn = document.querySelector('input[name="owner_first_name"]');
+					var oln = document.querySelector('input[name="owner_last_name"]');
+					var website = document.querySelector('input[name="website"]');
+					var phone = document.querySelector('input[name="phone"]');
+					var companyName = name ? (name.value || 'Your Company') : 'Your Company';
+					var site = website ? (website.value || '') : '';
+					var companyNameLink = site ? '<a href="' + site + '">' + companyName + '</a>' : companyName;
+					var companyURL = site ? '<a href="' + site + '">' + site + '</a>' : '';
+
+					function substitute(tmpl) {
+						tmpl = tmpl.split(lb + 'companyNameLink' + rb).join(companyNameLink);
+						tmpl = tmpl.split(lb + 'companyName' + rb).join(companyName);
+						tmpl = tmpl.split(lb + 'companyWebsite' + rb).join(site);
+						tmpl = tmpl.split(lb + 'companyURL' + rb).join(companyURL);
+						tmpl = tmpl.split(lb + 'companyPhone' + rb).join(phone ? (phone.value || '+1 555 000 0000') : '+1 555 000 0000');
+						tmpl = tmpl.split(lb + 'ownerFirstName' + rb).join(ofn ? (ofn.value || 'John') : 'John');
+						tmpl = tmpl.split(lb + 'ownerLastName' + rb).join(oln ? (oln.value || 'Doe') : 'Doe');
+						tmpl = tmpl.split(lb + 'invoiceNumber' + rb).join('INV-2026-001');
+						tmpl = tmpl.split(lb + 'clientName' + rb).join('Sample Client');
+						tmpl = tmpl.split(lb + 'invoiceTotal' + rb).join('1,500.00');
+						tmpl = tmpl.split(lb + 'invoiceDueDate' + rb).join('2026-09-21');
+						return tmpl;
+					}
+
+					var subjectHtml = subjInput ? substitute(subjInput.value || subjInput.placeholder) : '';
+					var bodyHtml = substitute(body.value || body.placeholder);
+					preview.srcdoc = '<html><body style="font-family: sans-serif; margin: 0; padding: 12px; color: #1f2937; line-height: 1.5;">' +
+						'<p style="font-weight: 600; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">' + subjectHtml + '</p>' +
+						bodyHtml +
+					bodyHtml +
+					'</body></html>';
+				}
+
+
+				document.addEventListener('input', function(e) {
+					if (e.target.closest('form')) {
+						renderPreview();
+					}
+				});
+				document.addEventListener('htmx:afterSwap', renderPreview);
+				renderPreview();
+			})();
+			</script>
+	</body>
+	</html>
+}
+
+templ SettingsForm(c store.Company) {
+	<form
+		hx-post="/settings"
+		hx-swap="outerHTML"
+		enctype="multipart/form-data"
+		class="card"
+	>
+		<label>Company Name *<br/>
+			<input type="text" name="name" value={ c.Name } required/>
+		</label>
+		<div class="form-row">
+			<div class="form-group">
+				<label>Owner First Name<br/>
+					<input type="text" name="owner_first_name" value={ c.OwnerFirstName }/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Owner Last Name<br/>
+					<input type="text" name="owner_last_name" value={ c.OwnerLastName }/>
+				</label>
+			</div>
+		</div>
+		<label>Website<br/>
+			<input type="url" name="website" value={ c.Website } placeholder="https://example.com"/>
+		</label>
+		<label>Address<br/>
+			<textarea name="address">{ c.Address }</textarea>
+		</label>
+		<label>Email<br/>
+			<input type="email" name="email" value={ c.Email }/>
+		</label>
+		<label>Phone<br/>
+			<input type="text" name="phone" value={ c.Phone }/>
+		</label>
+		<label>VAT/Tax ID<br/>
+			<input type="text" name="tax_id" value={ c.TaxID }/>
+		</label>
+		<label>IBAN<br/>
+			<input type="text" name="iban" value={ c.IBAN }/>
+		</label>
+		<label>Currency<br/>
+			<input type="text" name="default_currency" value={ c.DefaultCurrency }/>
+		</label>
+		<label>Default Tax Rate (%)<br/>
+			<input type="number" step="0.01" name="default_tax_rate_pct"
+				value={ fmt.Sprintf("%.2f", float64(c.DefaultTaxRateBPS)/100) }/>
+		</label>
+		<label>Invoice Number Prefix<br/>
+			<input type="text" name="invoice_number_prefix" value={ c.InvoiceNumberPrefix }/>
+		</label>
+		<label>Logo<br/>
+			<input type="file" name="logo" accept="image/*"/>
+			if c.LogoData != "" {
+				<br/>
+				<img src={ c.LogoData } alt="logo" style="max-height: 80px; max-width: 200px; margin-top: 0.5rem; border: 1px solid #dbe3ee; border-radius: 8px; padding: 4px;"/>
+			}
+		</label>
+		<h3>Default Email Template</h3>
+		<small>Used when a client has no custom template. Variables: { "{{companyName}}, {{companyNameLink}}, {{companyWebsite}}, {{companyURL}}, {{companyPhone}}, {{ownerFirstName}}, {{ownerLastName}}, {{invoiceNumber}}, {{clientName}}, {{invoiceTotal}}, {{invoiceDueDate}}" }</small>
+		<label>Default Email Subject<br/>
+			<input type="text" name="default_email_subject" value={ c.DefaultEmailSubject } placeholder={ email.DefaultSubject }/>
+		</label>
+		<label>Default Email Body (HTML)<br/>
+			<textarea name="default_email_body" rows="10" placeholder={ email.DefaultBody }>{ c.DefaultEmailBody }</textarea>
+		</label>
+		<div class="email-preview-wrap">
+			<small>Preview (sample data):</small>
+			<iframe id="email-preview" style="width: 100%; height: 200px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;"></iframe>
+		</div>
+		<button type="submit">Save</button>
+	</form>
+}
+
+templ SettingsSaved(c store.Company) {
+	<div id="settings-saved">
+		<p>✓ Settings saved for <strong>{ c.Name }</strong></p>
+		@SettingsForm(c)
+	</div>
+}

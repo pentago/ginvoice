@@ -1,0 +1,28 @@
+services:
+  ginvoice:
+    build: .
+    container_name: ginvoice
+    hostname: ginvoice
+    user: 1000:1000
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      GINVOICE_BASE_URL: ${BASE_URL}
+      GINVOICE_RESEND_API_KEY: ${RESEND_API_KEY}
+      GINVOICE_FROM_EMAIL: ${FROM_EMAIL}
+      GINVOICE_FROM_NAME: ${FROM_NAME}
+      # GINVOICE_TRUSTED_PROXY_CIDR: 10.0.0.0/8
+      # GINVOICE_AUTH_HEADER: Remote-User
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8080:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 256M
+    restart: unless-stopped

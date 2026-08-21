@@ -1,0 +1,142 @@
+package views
+
+import (
+	"fmt"
+
+	"ginvoice/internal/store"
+)
+
+// ClientsPage renders the full clients list page with an "Add Client" link.
+templ ClientsPage(clients []store.Client) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<title>Clients — ginvoice</title>
+			<link rel="stylesheet" href="/static/style.css"/>
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body>
+			@Nav()
+			<main class="container">
+				<h1>Clients</h1>
+			<p><a href="/clients/new" class="btn btn-success">Add Client</a></p>
+				if len(clients) == 0 {
+					<p>No clients yet. Add your first client to get started.</p>
+				} else {
+					<table id="clients-table">
+						<thead>
+							<tr>
+								<th>Name</th>
+								<th>Company</th>
+								<th>Email</th>
+								<th>Phone</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, c := range clients {
+								@ClientRow(c)
+							}
+						</tbody>
+					</table>
+				}
+			</main>
+		</body>
+	</html>
+}
+
+// ClientRow renders a single table row for a client. The delete button
+// posts to /clients/{id}/delete and swap-removes this row via HTMX.
+templ ClientRow(c store.Client) {
+	<tr id={ fmt.Sprintf("client-row-%d", c.ID) }>
+		<td>{ c.Name }</td>
+		<td>{ c.CompanyName }</td>
+		<td>{ c.Email }</td>
+		<td>{ c.Phone }</td>
+		<td>
+			<a href={ templ.URL(fmt.Sprintf("/clients/%d/edit", c.ID)) } class="btn btn-secondary">Edit</a>
+			<button
+				hx-post={ templ.URL(fmt.Sprintf("/clients/%d/delete", c.ID)) }
+				hx-target={ fmt.Sprintf("#client-row-%d", c.ID) }
+				hx-swap="outerHTML"
+				hx-confirm="Delete this client?"
+				class="btn btn-danger"
+			>Delete</button>
+		</td>
+	</tr>
+}
+
+// ClientForm renders the add/edit form. action is "/clients" for create
+// or "/clients/{id}" for update.
+templ ClientForm(c store.Client, action string) {
+	<form method="post" action={ templ.URL(action) } class="card">
+		<label for="name">Name *</label>
+		<input type="text" id="name" name="name" value={ c.Name } required/>
+
+		<label for="company_name">Company</label>
+		<input type="text" id="company_name" name="company_name" value={ c.CompanyName }/>
+
+		<label for="address">Address</label>
+		<textarea id="address" name="address">{ c.Address }</textarea>
+
+		<label for="email">Email</label>
+		<input type="email" id="email" name="email" value={ c.Email }/>
+
+		<label for="phone">Phone</label>
+		<input type="text" id="phone" name="phone" value={ c.Phone }/>
+
+		<label for="tax_id">VAT/Tax ID</label>
+		<input type="text" id="tax_id" name="tax_id" value={ c.TaxID }/>
+
+		<h3>Email Template (optional override)</h3>
+		<small>Leave blank to use the company default. Variables: { "{{companyName}}, {{ownerFirstName}}, {{ownerLastName}}, {{invoiceNumber}}, {{clientName}}, {{invoiceTotal}}, {{invoiceDueDate}}" }</small>
+		<label for="email_subject">Email Subject</label>
+		<input type="text" id="email_subject" name="email_subject" value={ c.EmailSubject }/>
+
+		<label for="email_body">Email Body (HTML)</label>
+		<textarea id="email_body" name="email_body" rows="10">{ c.EmailBody }</textarea>
+
+		<button type="submit">Save</button>
+	</form>
+}
+
+// NewClientPage renders a blank client form for creating a client.
+templ NewClientPage() {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<title>New Client — ginvoice</title>
+			<link rel="stylesheet" href="/static/style.css"/>
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body>
+			@Nav()
+			<main class="container">
+				<h1>Add Client</h1>
+				@ClientForm(store.Client{}, "/clients")
+			</main>
+		</body>
+	</html>
+}
+
+// EditClientPage renders the client form pre-filled for updating a client.
+templ EditClientPage(c store.Client) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<title>Edit Client — ginvoice</title>
+			<link rel="stylesheet" href="/static/style.css"/>
+			<script src="/static/htmx.min.js"></script>
+		</head>
+		<body>
+			@Nav()
+			<main class="container">
+				<h1>Edit Client</h1>
+				@ClientForm(c, fmt.Sprintf("/clients/%d", c.ID))
+			</main>
+		</body>
+	</html>
+}

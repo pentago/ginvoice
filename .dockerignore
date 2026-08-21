@@ -1,0 +1,36 @@
+# Version control
+.git/
+.gitignore
+
+# Docker build files (not needed inside the image)
+Dockerfile
+.dockerignore
+compose.yaml
+
+# Build artifacts
+bin/
+vendor/
+
+# Runtime data — never bake into image
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Local environment / secrets
+.env
+.env.*
+
+# Docs (not embedded in the binary)
+*.md
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Agent tooling
+.opencode/
+.omo/
+.codegraph/

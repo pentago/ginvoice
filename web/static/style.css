@@ -1,0 +1,323 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  color: #1f2937;
+  background: #f8fafc;
+}
+
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 1.5rem;
+}
+
+a {
+  color: #2563eb;
+}
+
+/* --- Nav --- */
+nav {
+  background: #fff;
+  border-bottom: 1px solid #dbe3ee;
+  padding: 0 1rem;
+}
+
+.nav-inner {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+nav a {
+  display: inline-block;
+  padding: 0.85rem 1rem;
+  color: #475569;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+  border-bottom: 2px solid transparent;
+}
+
+nav a:hover {
+  color: #1f2937;
+  border-bottom-color: #2563eb;
+}
+
+/* --- Cards / forms / tables --- */
+table,
+.card,
+form.card {
+  background: #fff;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+}
+
+.card,
+form.card {
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+input,
+select,
+textarea,
+button {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  margin-bottom: 0.75rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+/* --- Buttons --- */
+button,
+a.btn {
+  display: inline-block;
+  width: auto;
+  padding: 0.6rem 1.1rem;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  color: #fff;
+  background: #2563eb;
+  text-decoration: none;
+  margin-bottom: 0;
+}
+
+button:hover,
+a.btn:hover {
+  background: #1d4ed8;
+}
+
+/* Secondary: edit, view, cancel, back */
+button.btn-secondary,
+a.btn.btn-secondary {
+  background: #e2e8f0;
+  color: #1f2937;
+  border: 1px solid #cbd5e1;
+}
+
+button.btn-secondary:hover,
+a.btn.btn-secondary:hover {
+  background: #cbd5e1;
+}
+
+/* Destructive: delete */
+button.btn-danger,
+a.btn.btn-danger {
+  background: #dc2626;
+  color: #fff;
+  border: 0;
+}
+
+button.btn-danger:hover,
+a.btn.btn-danger:hover {
+  background: #b91c1c;
+}
+
+/* Warning: download, export */
+button.btn-warning,
+a.btn.btn-warning {
+  background: #ea580c;
+  color: #fff;
+  border: 0;
+}
+
+button.btn-warning:hover,
+a.btn.btn-warning:hover {
+  background: #c2410c;
+}
+
+
+/* Additive: create, add */
+button.btn-success,
+a.btn.btn-success {
+  background: #16a34a;
+  color: #fff;
+  border: 0;
+}
+
+button.btn-success:hover,
+a.btn.btn-success:hover {
+  background: #15803d;
+}
+
+/* --- Tables --- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+}
+
+th,
+td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+th {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f8fafc;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+tbody tr:hover {
+  background: #f8fafc;
+}
+
+
+/* --- Table action buttons --- */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.action-form {
+  display: flex !important;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+/* --- Form layout --- */
+.form-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-row > .form-group {
+  flex: 1;
+}
+
+.form-group {
+  margin-bottom: 0.75rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+/* --- Line items --- */
+.line-item {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.line-item > .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* --- Invoice view --- */
+.invoice-details {
+  background: #fff;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.invoice-details p {
+  margin: 0.3rem 0;
+}
+
+.invoice-totals {
+  background: #fff;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-top: 1rem;
+  text-align: right;
+}
+
+.invoice-totals p {
+  margin: 0.25rem 0;
+}
+
+.invoice-totals p:last-child {
+  font-size: 1.15rem;
+  font-weight: 700;
+  border-top: 2px solid #e2e8f0;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* --- Status badge --- */
+td:has(> :is([data-status])) {
+  /* fallback for browsers without :has */
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-sent {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-paid {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* --- Misc --- */
+small {
+  color: #64748b;
+}
