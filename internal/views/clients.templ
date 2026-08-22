@@ -15,6 +15,7 @@ templ ClientsPage(clients []store.Client) {
 			<title>Clients — ginvoice</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()
@@ -110,6 +111,7 @@ templ NewClientPage() {
 			<title>New Client — ginvoice</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()
@@ -130,6 +132,7 @@ templ EditClientPage(c store.Client) {
 			<title>Edit Client — ginvoice</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()

@@ -1,13 +1,53 @@
 package views
 
-// Nav renders a top navigation bar with links to all main sections.
+// ThemeInit renders an inline script for the <head> that applies the saved
+// theme from localStorage before the page renders, preventing a flash of
+// the wrong theme. Defaults to dark.
+templ ThemeInit() {
+	<script>
+		(function() {
+			var t = localStorage.getItem("ginvoice-theme") || "dark";
+			document.documentElement.setAttribute("data-theme", t);
+		})();
+	</script>
+}
+
+// Nav renders a top navigation bar with links to all main sections
+// and a dark/light theme toggle button.
 templ Nav() {
 	<nav>
 		<div class="nav-inner">
-			<a href="/invoices">Invoices</a>
-			<a href="/clients">Clients</a>
-			<a href="/services">Services</a>
-			<a href="/settings">Settings</a>
+			<div class="nav-links">
+				<a href="/invoices">Invoices</a>
+				<a href="/clients">Clients</a>
+				<a href="/services">Services</a>
+				<a href="/settings">Settings</a>
+			</div>
+			<button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme" onclick="ginvoiceToggleTheme()"></button>
 		</div>
 	</nav>
+	<script>
+		(function() {
+			var KEY = "ginvoice-theme";
+
+			function currentTheme() {
+				return document.documentElement.getAttribute("data-theme") || "dark";
+			}
+
+			function updateIcon() {
+				var btn = document.getElementById("theme-toggle");
+				if (!btn) return;
+				btn.textContent = currentTheme() === "dark" ? "\u2600" : "\u263D";
+			}
+
+			window.ginvoiceToggleTheme = function() {
+				var next = currentTheme() === "dark" ? "light" : "dark";
+				document.documentElement.setAttribute("data-theme", next);
+				localStorage.setItem(KEY, next);
+				updateIcon();
+			};
+
+			updateIcon();
+		})();
+	</script>
 }

@@ -20,6 +20,7 @@ templ ServicesPage(services []store.Service) {
 			<title>Services</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()
@@ -73,6 +74,7 @@ templ NewServicePage() {
 			<title>New service</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()
@@ -93,6 +95,7 @@ templ EditServicePage(s store.Service) {
 			<title>Edit service</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()

@@ -2,6 +2,8 @@ package views
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"ginvoice/internal/store"
 )
@@ -13,7 +15,80 @@ func isSelected(condition bool) string {
 	}
 	return ""
 }
-// InvoicesPage renders the full invoices list page.
+
+// invoicePrefix splits an invoice number like "OPS-2026-001" into prefix "OPS"
+// and remainder "2026-001". If there is no dash, prefix is "-" and the
+// remainder is the whole number (matching the pausal.rs convention where an
+// empty prefix renders as "-").
+func invoicePrefix(number string) (prefix, rest string) {
+	if i := strings.IndexByte(number, '-'); i >= 0 {
+		return number[:i], number[i+1:]
+	}
+	return "-", number
+}
+
+// invoiceYear extracts the 4-digit year from an IssueDate of the form
+// "YYYY-MM-DD". It returns "" for malformed dates.
+func invoiceYear(issueDate string) string {
+	if len(issueDate) >= 4 {
+		return issueDate[:4]
+	}
+	return ""
+}
+
+// distinctCurrencies returns the sorted distinct non-empty currency codes from
+// the invoice list, for the currency filter dropdown.
+func distinctCurrencies(invoices []store.Invoice) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, inv := range invoices {
+		if inv.Currency == "" || seen[inv.Currency] {
+			continue
+		}
+		seen[inv.Currency] = true
+		out = append(out, inv.Currency)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// distinctYears returns the distinct years derived from each invoice's
+// IssueDate (YYYY-MM-DD), sorted descending so the most recent year is first.
+func distinctYears(invoices []store.Invoice) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, inv := range invoices {
+		y := invoiceYear(inv.IssueDate)
+		if y == "" || seen[y] {
+			continue
+		}
+		seen[y] = true
+		out = append(out, y)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(out)))
+	return out
+}
+
+// distinctClientNames returns the sorted distinct client names from the
+// invoice list, for the client filter dropdown.
+func distinctClientNames(invoices []store.Invoice) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, inv := range invoices {
+		if inv.Client.Name == "" || seen[inv.Client.Name] {
+			continue
+		}
+		seen[inv.Client.Name] = true
+		out = append(out, inv.Client.Name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// InvoicesPage renders the full invoices list page with sortable columns,
+// status/currency/year/client filters, free-text search, and a per-row
+// kebab action menu. All filtering/sorting is client-side over the rendered
+// rows; the server still returns the full list ordered by number DESC.
 templ InvoicesPage(invoices []store.Invoice) {
 	<!DOCTYPE html>
 	<html lang="en">
@@ -22,25 +97,60 @@ templ InvoicesPage(invoices []store.Invoice) {
 			<title>Invoices — ginvoice</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()
 			<main class="container">
 				<h1>Invoices</h1>
-			<p><a href="/invoices/new" class="btn btn-success">Create Invoice</a></p>
 				if len(invoices) == 0 {
 					<p>No invoices yet. Create your first invoice to get started.</p>
+					<p><a href="/invoices/new" class="btn btn-success">Create Invoice</a></p>
 				} else {
+					<div class="invoices-toolbar">
+						<div class="toolbar-search">
+							<input type="search" id="invoice-search" placeholder="Search client, prefix, number, amount…" autocomplete="off"/>
+						</div>
+						<div class="toolbar-filters">
+							<select id="filter-status" aria-label="Filter by status">
+								<option value="">All statuses</option>
+								<option value="draft">Draft</option>
+								<option value="sent">Sent</option>
+								<option value="paid">Paid</option>
+							</select>
+							<select id="filter-currency" aria-label="Filter by currency">
+								<option value="">All currencies</option>
+								for _, c := range distinctCurrencies(invoices) {
+									<option value={ c }>{ c }</option>
+								}
+							</select>
+							<select id="filter-year" aria-label="Filter by year">
+								<option value="">All years</option>
+								for _, y := range distinctYears(invoices) {
+									<option value={ y }>{ y }</option>
+								}
+							</select>
+							<select id="filter-client" aria-label="Filter by client">
+								<option value="">All clients</option>
+								for _, name := range distinctClientNames(invoices) {
+									<option value={ name }>{ name }</option>
+								}
+							</select>
+						</div>
+						<div class="toolbar-actions">
+							<a href="/invoices/new" class="btn btn-success">Create Invoice</a>
+						</div>
+					</div>
 					<table id="invoices-table">
 						<thead>
 							<tr>
-								<th>Number</th>
-								<th>Client</th>
-								<th>Issue Date</th>
-								<th>Due Date</th>
-								<th>Status</th>
-								<th>Total</th>
-								<th>Actions</th>
+								<th><button type="button" class="sort-btn" data-sort="client">Client <span class="sort-arrow" aria-hidden="true"></span></button></th>
+								<th><button type="button" class="sort-btn" data-sort="prefix">Prefix <span class="sort-arrow" aria-hidden="true"></span></button></th>
+								<th><button type="button" class="sort-btn" data-sort="number">Number <span class="sort-arrow" aria-hidden="true"></span></button></th>
+								<th><button type="button" class="sort-btn" data-sort="issue">Issue Date <span class="sort-arrow" aria-hidden="true"></span></button></th>
+								<th><button type="button" class="sort-btn" data-sort="amount">Amount <span class="sort-arrow" aria-hidden="true"></span></button></th>
+								<th><button type="button" class="sort-btn" data-sort="status">Status <span class="sort-arrow" aria-hidden="true"></span></button></th>
+								<th class="th-menu" aria-label="Actions"></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -49,26 +159,194 @@ templ InvoicesPage(invoices []store.Invoice) {
 							}
 						</tbody>
 					</table>
+					<p id="invoices-empty" class="invoices-empty" hidden>No invoices match the current filters.</p>
 				}
 			</main>
+			<script>
+				(function() {
+					var table = document.getElementById("invoices-table");
+					if (!table) return;
+					var tbody = table.tBodies[0];
+					var rows = Array.prototype.slice.call(tbody.rows);
+					var empty = document.getElementById("invoices-empty");
+
+					var search = document.getElementById("invoice-search");
+					var fStatus = document.getElementById("filter-status");
+					var fCurrency = document.getElementById("filter-currency");
+					var fYear = document.getElementById("filter-year");
+					var fClient = document.getElementById("filter-client");
+
+					var sortKey = null;
+					var sortDir = 1; // 1 asc, -1 desc
+
+					function rowValue(row, key) {
+						return row.getAttribute("data-" + key) || "";
+					}
+
+					function applyFilters() {
+						var q = search.value.trim().toLowerCase();
+						var status = fStatus.value;
+						var currency = fCurrency.value;
+						var year = fYear.value;
+						var client = fClient.value;
+						var visible = 0;
+						rows.forEach(function(row) {
+							var hay = row.getAttribute("data-search") || "";
+							var ok =
+								(!status || row.getAttribute("data-status") === status) &&
+								(!currency || row.getAttribute("data-currency") === currency) &&
+								(!year || row.getAttribute("data-year") === year) &&
+								(!client || row.getAttribute("data-client") === client) &&
+								(!q || hay.indexOf(q) !== -1);
+							row.style.display = ok ? "" : "none";
+							if (ok) visible++;
+						});
+						empty.hidden = visible !== 0;
+					}
+
+					function applySort() {
+						if (!sortKey) return;
+						rows.sort(function(a, b) {
+							var av = rowValue(a, sortKey);
+							var bv = rowValue(b, sortKey);
+							var n;
+							if (sortKey === "amount") {
+								n = (parseInt(av, 10) - parseInt(bv, 10));
+							} else if (sortKey === "issue") {
+								n = av < bv ? -1 : av > bv ? 1 : 0;
+							} else {
+								n = av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" });
+							}
+							return n * sortDir;
+						});
+						rows.forEach(function(row) { tbody.appendChild(row); });
+					}
+
+					function updateArrows(activeBtn) {
+						var btns = table.querySelectorAll(".sort-btn");
+						btns.forEach(function(btn) {
+							var arrow = btn.querySelector(".sort-arrow");
+							if (btn === activeBtn) {
+								arrow.textContent = sortDir === 1 ? "\u2191" : "\u2193";
+								btn.setAttribute("aria-sort", sortDir === 1 ? "ascending" : "descending");
+							} else {
+								arrow.textContent = "";
+								btn.removeAttribute("aria-sort");
+							}
+						});
+					}
+
+					table.addEventListener("click", function(e) {
+						var btn = e.target.closest(".sort-btn");
+						if (!btn) return;
+						var key = btn.getAttribute("data-sort");
+						if (sortKey === key) {
+							sortDir = sortDir * -1;
+						} else {
+							sortKey = key;
+							sortDir = 1;
+						}
+						applySort();
+						updateArrows(btn);
+					});
+
+					[search, fStatus, fCurrency, fYear, fClient].forEach(function(el) {
+						el.addEventListener("input", applyFilters);
+						el.addEventListener("change", applyFilters);
+					});
+
+					// --- Kebab menu ---
+					document.addEventListener("click", function(e) {
+						var trigger = e.target.closest(".kebab-btn");
+						if (trigger) {
+							var menu = trigger.parentElement.querySelector(".kebab-menu");
+							var open = menu.hasAttribute("data-open");
+							closeAllMenus();
+							if (!open) {
+								menu.setAttribute("data-open", "");
+								trigger.setAttribute("aria-expanded", "true");
+								var rect = trigger.getBoundingClientRect();
+								menu.style.right = (window.innerWidth - rect.right) + "px";
+								if (rect.bottom + menu.offsetHeight + 8 > window.innerHeight) {
+									menu.style.top = "";
+									menu.style.bottom = (window.innerHeight - rect.top + 4) + "px";
+								} else {
+									menu.style.bottom = "";
+									menu.style.top = (rect.bottom + 4) + "px";
+								}
+							}
+							return;
+						}
+						if (!e.target.closest(".kebab-menu")) {
+							closeAllMenus();
+						}
+					});
+					document.addEventListener("keydown", function(e) {
+						if (e.key === "Escape") closeAllMenus();
+					});
+					function closeAllMenus() {
+						document.querySelectorAll(".kebab-menu[data-open]").forEach(function(m) {
+							m.removeAttribute("data-open");
+							m.style.top = "";
+							m.style.bottom = "";
+							m.style.right = "";
+							var t = m.parentElement.querySelector(".kebab-btn");
+							if (t) t.setAttribute("aria-expanded", "false");
+						});
+					}
+
+					applyFilters();
+				})();
+			</script>
 		</body>
 	</html>
 }
 
-// InvoiceRow renders a single table row for an invoice.
+// InvoiceRow renders a single table row for an invoice. Data attributes drive
+// the client-side filtering and sorting; the kebab menu surfaces the actions
+// that have backing routes (View, Edit, Download PDF, Print, Email Invoice).
 templ InvoiceRow(inv store.Invoice) {
-	<tr id={ fmt.Sprintf("invoice-row-%d", inv.ID) }>
-		<td>{ inv.Number }</td>
+	{{ prefix, rest := invoicePrefix(inv.Number) }}
+	{{ year := invoiceYear(inv.IssueDate) }}
+	{{ amountStr := formatCents(inv.Total) + " " + inv.Currency }}
+	<tr id={ fmt.Sprintf("invoice-row-%d", inv.ID) }
+		data-client={ inv.Client.Name }
+		data-prefix={ prefix }
+		data-number={ rest }
+		data-issue={ inv.IssueDate }
+		data-amount={ fmt.Sprintf("%d", inv.Total) }
+		data-currency={ inv.Currency }
+		data-year={ year }
+		data-status={ inv.Status }
+		data-search={ strings.ToLower(inv.Client.Name + " " + prefix + " " + rest + " " + inv.Number + " " + amountStr) }
+	>
 		<td>{ inv.Client.Name }</td>
+		<td>{ prefix }</td>
+		<td>{ rest }</td>
 		<td>{ inv.IssueDate }</td>
-		<td>{ inv.DueDate }</td>
+		<td>{ amountStr }</td>
 		<td><span class={ "badge badge-" + inv.Status }>{ inv.Status }</span></td>
-		<td>{ formatCents(inv.Total) }</td>
-		<td>
-			<a href={ templ.URL(fmt.Sprintf("/invoices/%d", inv.ID)) } class="btn">View</a>
-			if inv.Status == "draft" {
-				<a href={ templ.URL(fmt.Sprintf("/invoices/%d/edit", inv.ID)) } class="btn btn-secondary">Edit</a>
-			}
+		<td class="td-menu">
+			<div class="kebab-wrap">
+				<button type="button" class="kebab-btn" aria-label={ fmt.Sprintf("Actions for invoice %s", inv.Number) } aria-haspopup="true" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
+				<div class="kebab-menu" role="menu">
+					<a class="menu-item" role="menuitem" href={ templ.URL(fmt.Sprintf("/invoices/%d", inv.ID)) }>View</a>
+					if inv.Status == "draft" {
+						<a class="menu-item" role="menuitem" href={ templ.URL(fmt.Sprintf("/invoices/%d/edit", inv.ID)) }>Edit</a>
+					}
+					<a class="menu-item" role="menuitem" href={ templ.URL(fmt.Sprintf("/invoices/%d/pdf", inv.ID)) } download>Download PDF</a>
+					<a class="menu-item" role="menuitem" href={ templ.URL(fmt.Sprintf("/invoices/%d/pdf", inv.ID)) } target="_blank" rel="noopener">Print</a>
+					if inv.Status == "draft" && inv.Client.Email != "" {
+						<button class="menu-item" role="menuitem" type="button"
+							hx-post={ templ.URL(fmt.Sprintf("/invoices/%d/email", inv.ID)) }
+							hx-target={ fmt.Sprintf("#email-result-%d", inv.ID) }
+							hx-swap="innerHTML"
+							hx-confirm={ fmt.Sprintf("Email this invoice to %s?", inv.Client.Email) }
+						>Email Invoice</button>
+					}
+				</div>
+			</div>
+			<div id={ fmt.Sprintf("email-result-%d", inv.ID) }></div>
 		</td>
 	</tr>
 }
@@ -170,6 +448,7 @@ templ NewInvoicePage(clients []store.Client, services []store.Service, invoice s
 			<title>New Invoice — ginvoice</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()
@@ -190,6 +469,7 @@ templ InvoicePage(inv store.Invoice) {
 			<title>{ inv.Number } — ginvoice</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()
@@ -273,6 +553,7 @@ templ EditInvoicePage(clients []store.Client, services []store.Service, inv stor
 			<title>Edit { inv.Number } — ginvoice</title>
 			<link rel="stylesheet" href="/static/style.css"/>
 			<script src="/static/htmx.min.js"></script>
+			@ThemeInit()
 		</head>
 		<body>
 			@Nav()

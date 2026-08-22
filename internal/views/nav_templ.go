@@ -8,8 +8,10 @@ package views
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// Nav renders a top navigation bar with links to all main sections.
-func Nav() templ.Component {
+// ThemeInit renders an inline script for the <head> that applies the saved
+// theme from localStorage before the page renders, preventing a flash of
+// the wrong theme. Defaults to dark.
+func ThemeInit() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -30,7 +32,38 @@ func Nav() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<nav><div class=\"nav-inner\"><a href=\"/invoices\">Invoices</a> <a href=\"/clients\">Clients</a> <a href=\"/services\">Services</a> <a href=\"/settings\">Settings</a></div></nav>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<script>\n\t\t(function() {\n\t\t\tvar t = localStorage.getItem(\"ginvoice-theme\") || \"dark\";\n\t\t\tdocument.documentElement.setAttribute(\"data-theme\", t);\n\t\t})();\n\t</script>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// Nav renders a top navigation bar with links to all main sections
+// and a dark/light theme toggle button.
+func Nav() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var2 == nil {
+			templ_7745c5c3_Var2 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<nav><div class=\"nav-inner\"><div class=\"nav-links\"><a href=\"/invoices\">Invoices</a> <a href=\"/clients\">Clients</a> <a href=\"/services\">Services</a> <a href=\"/settings\">Settings</a></div><button id=\"theme-toggle\" class=\"theme-toggle\" aria-label=\"Toggle theme\" onclick=\"ginvoiceToggleTheme()\"></button></div></nav><script>\n\t\t(function() {\n\t\t\tvar KEY = \"ginvoice-theme\";\n\n\t\t\tfunction currentTheme() {\n\t\t\t\treturn document.documentElement.getAttribute(\"data-theme\") || \"dark\";\n\t\t\t}\n\n\t\t\tfunction updateIcon() {\n\t\t\t\tvar btn = document.getElementById(\"theme-toggle\");\n\t\t\t\tif (!btn) return;\n\t\t\t\tbtn.textContent = currentTheme() === \"dark\" ? \"\\u2600\" : \"\\u263D\";\n\t\t\t}\n\n\t\t\twindow.ginvoiceToggleTheme = function() {\n\t\t\t\tvar next = currentTheme() === \"dark\" ? \"light\" : \"dark\";\n\t\t\t\tdocument.documentElement.setAttribute(\"data-theme\", next);\n\t\t\t\tlocalStorage.setItem(KEY, next);\n\t\t\t\tupdateIcon();\n\t\t\t};\n\n\t\t\tupdateIcon();\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
