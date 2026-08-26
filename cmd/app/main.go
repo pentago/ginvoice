@@ -25,6 +25,10 @@ const (
 
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		runHealthcheck()
+	}
+
 	cfg := config.Load()
 
 	db, err := openDB()
@@ -110,6 +114,24 @@ func main() {
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {
 		log.Fatalf("serve: %v", err)
 	}
+}
+
+func runHealthcheck() {
+	addr := os.Getenv("GINVOICE_ADDR")
+	port := "8080"
+	if addr != "" {
+		if idx := strings.LastIndex(addr, ":"); idx >= 0 {
+			if p := addr[idx+1:]; p != "" {
+				port = p
+			}
+		}
+	}
+	c := &http.Client{Timeout: 3 * time.Second}
+	resp, err := c.Get("http://localhost:" + port + "/healthz")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
 
 func openDB() (*sql.DB, error) {

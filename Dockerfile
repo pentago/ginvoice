@@ -17,7 +17,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOFLAGS=-mod=mod go run github.com/a-h/templ/cmd/templ generate && \
     go build -trimpath -ldflags="-s -w" -buildvcs=false -o /app ./cmd/app && \
-    go build -trimpath -ldflags="-s -w" -buildvcs=false -o /healthcheck ./cmd/healthcheck && \
     rm -rf /tmp/*
 
 FROM scratch
@@ -27,12 +26,11 @@ LABEL org.opencontainers.image.title="ginvoice" \
 COPY --from=build --chown=65534:65534 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build --chown=65534:65534 /tmp /tmp
 COPY --from=build --chown=65534:65534 /app /app
-COPY --from=build --chown=65534:65534 /healthcheck /healthcheck
 
 USER 65534:65534
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/healthcheck"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/app", "healthcheck"]
 
 ENTRYPOINT ["/app"]

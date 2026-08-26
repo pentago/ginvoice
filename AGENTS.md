@@ -21,7 +21,7 @@ Requires buildx ≥0.17.0 (BuildKit is the default builder; `# syntax=docker/doc
 ## Architecture
 
 - `cmd/app/main.go` — entrypoint, route registration, DB open + migrate. All routes wired here. DB path (`/data/ginvoice.db`) and data dir (`/data`) are hardcoded constants — not configurable via env.
-- `cmd/healthcheck/main.go` — tiny HTTP probe binary for Docker HEALTHCHECK. Reads `GINVOICE_ADDR`, GETs `/healthz`.
+- `cmd/app/main.go` healthcheck subcommand — when invoked as `/app healthcheck`, reads `GINVOICE_ADDR`, GETs `/healthz`, exits 0/1. Used by Docker HEALTHCHECK.
 - `internal/config/` — env-based config (`GINVOICE_*` env vars, see `config.go`). No `DBPath` or `DataDir` fields — those are hardcoded in `main.go`.
 - `internal/store/` — SQLite via `modernc.org/sqlite` (pure Go, CGO-free). Goose migrations. All money in integer cents.
 - `internal/handlers/` — HTTP handlers, one file per domain (invoices, clients, services, company). Tests in `*_test.go` use httptest + real temp SQLite DB.
