@@ -2,11 +2,17 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 )
+
+// ErrInvoiceNotDraft is returned by DeleteInvoice when the invoice is not
+// in draft status (sent or paid invoices are immutable).
+var ErrInvoiceNotDraft = errors.New("invoice is not in draft status")
+
 
 // InvoiceLine is a single line item on an invoice.
 type InvoiceLine struct {
@@ -22,21 +28,23 @@ type InvoiceLine struct {
 
 // Invoice is a row in the invoices table.
 type Invoice struct {
-	ID        int64
-	Number    string
-	ClientID  int64
-	IssueDate string
-	DueDate   string
-	Status    string // "draft" | "sent"
-	Notes     string
-	Subtotal  int64  // integer cents
-	TaxRate   int64  // basis points
-	TaxAmount int64  // integer cents
-	Total     int64  // integer cents
-	Currency  string
-	SentAt    string
-	CreatedAt string
-	UpdatedAt string
+	ID             int64
+	Number         string
+	ClientID       int64
+	IssueDate      string
+	DueDate        string
+	Status         string // "draft" | "sent"
+	Notes          string
+	Subtotal       int64  // integer cents
+	DiscountBPS    int64  // basis points (100 = 1%)
+	DiscountAmount int64  // integer cents
+	TaxRate        int64  // basis points
+	TaxAmount      int64  // integer cents
+	Total          int64  // integer cents
+	Currency       string
+	SentAt         string
+	CreatedAt      string
+	UpdatedAt      string
 	// populated by GetInvoiceWithLines:
 	Lines  []InvoiceLine
 	Client Client
@@ -45,13 +53,15 @@ type Invoice struct {
 // ComputeTotals calculates line totals, subtotal, tax, and total from invoice
 // lines and tax rate in basis points. All arithmetic uses integer cents with
 // math.Round for half-away-from-zero rounding.
-func ComputeTotals(lines []InvoiceLine, taxRateBPS int64) (subtotal, taxAmount, total int64) {
+func ComputeTotals(lines []InvoiceLine, taxRateBPS, discountBPS int64) (subtotal, discountAmount, taxAmount, total int64) {
 	for i, l := range lines {
 		lines[i].LineTotal = int64(math.Round(l.Quantity * float64(l.UnitPrice)))
 		subtotal += lines[i].LineTotal
 	}
-	taxAmount = int64(math.Round(float64(subtotal) * float64(taxRateBPS) / 10000))
-	total = subtotal + taxAmount
+	discountAmount = int64(math.Round(float64(subtotal) * float64(discountBPS) / 10000))
+	taxable := subtotal - discountAmount
+	taxAmount = int64(math.Round(float64(taxable) * float64(taxRateBPS) / 10000))
+	total = subtotal - discountAmount + taxAmount
 	return
 }
 
@@ -85,7 +95,7 @@ func NextInvoiceNumber(db *sql.DB, prefix string, year int) (string, error) {
 func ListInvoices(db *sql.DB) ([]Invoice, error) {
 	rows, err := db.Query(`
 		SELECT id, number, client_id, issue_date, due_date, status, notes,
-		       subtotal, tax_rate, tax_amount, total, currency, sent_at,
+		       subtotal, discount_bps, discount_amount, tax_rate, tax_amount, total, currency, sent_at,
 		       created_at, updated_at
 		FROM invoices
 		ORDER BY number DESC, id DESC`)
@@ -113,7 +123,7 @@ func GetInvoice(db *sql.DB, id int64) (Invoice, error) {
 	var inv Invoice
 	row := db.QueryRow(`
 		SELECT id, number, client_id, issue_date, due_date, status, notes,
-		       subtotal, tax_rate, tax_amount, total, currency, sent_at,
+		       subtotal, discount_bps, discount_amount, tax_rate, tax_amount, total, currency, sent_at,
 		       created_at, updated_at
 		FROM invoices
 		WHERE id = ?`, id)
@@ -177,10 +187,10 @@ func CreateInvoice(db *sql.DB, inv Invoice, lines []InvoiceLine) (int64, error) 
 	err := InTx(db, func(tx *sql.Tx) error {
 		res, err := tx.Exec(`
 			INSERT INTO invoices (number, client_id, issue_date, due_date, status, notes,
-			                      subtotal, tax_rate, tax_amount, total, currency)
-			VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
+			                      subtotal, discount_bps, discount_amount, tax_rate, tax_amount, total, currency)
+			VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
 			inv.Number, inv.ClientID, inv.IssueDate, inv.DueDate, inv.Notes,
-			inv.Subtotal, inv.TaxRate, inv.TaxAmount, inv.Total, inv.Currency)
+			inv.Subtotal, inv.DiscountBPS, inv.DiscountAmount, inv.TaxRate, inv.TaxAmount, inv.Total, inv.Currency)
 		if err != nil {
 			return fmt.Errorf("insert invoice: %w", err)
 		}
@@ -216,11 +226,11 @@ func UpdateInvoice(db *sql.DB, inv Invoice, lines []InvoiceLine) error {
 		res, err := tx.Exec(`
 			UPDATE invoices
 			SET issue_date = ?, due_date = ?, notes = ?,
-			    subtotal = ?, tax_rate = ?, tax_amount = ?, total = ?,
+			    subtotal = ?, discount_bps = ?, discount_amount = ?, tax_rate = ?, tax_amount = ?, total = ?,
 			    updated_at = datetime('now')
 			WHERE id = ? AND status = 'draft'`,
 			inv.IssueDate, inv.DueDate, inv.Notes,
-			inv.Subtotal, inv.TaxRate, inv.TaxAmount, inv.Total, inv.ID)
+			inv.Subtotal, inv.DiscountBPS, inv.DiscountAmount, inv.TaxRate, inv.TaxAmount, inv.Total, inv.ID)
 		if err != nil {
 			return fmt.Errorf("update invoice %d: %w", inv.ID, err)
 		}
@@ -254,9 +264,28 @@ func UpdateInvoice(db *sql.DB, inv Invoice, lines []InvoiceLine) error {
 	})
 }
 
+// DeleteInvoice removes an invoice and its line items (via CASCADE).
+// Sent/paid invoices cannot be deleted — only draft status is allowed.
+func DeleteInvoice(db *sql.DB, id int64) error {
+	var status string
+	if err := db.QueryRow(`SELECT status FROM invoices WHERE id = ?`, id).Scan(&status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return fmt.Errorf("check invoice %d status: %w", id, err)
+	}
+	if status != "draft" {
+		return fmt.Errorf("delete invoice %d: %w", id, ErrInvoiceNotDraft)
+	}
+	if _, err := db.Exec(`DELETE FROM invoices WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete invoice %d: %w", id, err)
+	}
+	return nil
+}
+
 // invoiceColumns is the shared SELECT column list for invoices.
 const invoiceColumns = `id, number, client_id, issue_date, due_date, status, notes,
-	subtotal, tax_rate, tax_amount, total, currency, sent_at, created_at, updated_at`
+	subtotal, discount_bps, discount_amount, tax_rate, tax_amount, total, currency, sent_at, created_at, updated_at`
 
 // scanInvoice scans one invoices-table row into inv, mapping SQL NULL columns
 // to empty strings.
@@ -265,7 +294,7 @@ func scanInvoice(row rowScanner, inv *Invoice) error {
 	if err := row.Scan(
 		&inv.ID, &inv.Number, &inv.ClientID, &inv.IssueDate,
 		&dueDate, &inv.Status, &notes,
-		&inv.Subtotal, &inv.TaxRate, &inv.TaxAmount, &inv.Total,
+		&inv.Subtotal, &inv.DiscountBPS, &inv.DiscountAmount, &inv.TaxRate, &inv.TaxAmount, &inv.Total,
 		&inv.Currency, &sentAt, &inv.CreatedAt, &inv.UpdatedAt,
 	); err != nil {
 		return err

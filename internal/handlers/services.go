@@ -149,7 +149,6 @@ func serviceFromForm(r *http.Request) store.Service {
 	}
 	return store.Service{
 		Name:             r.PostFormValue("name"),
-		Description:      r.PostFormValue("description"),
 		DefaultUnitPrice: parseCents(r.PostFormValue("unit_price")),
 		Unit:             unit,
 	}

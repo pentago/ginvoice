@@ -13,22 +13,25 @@ var ErrClientReferenced = errors.New("client is referenced by invoices")
 
 // Client is a row in the clients table.
 type Client struct {
-	ID           int64
-	Name         string
-	CompanyName  string
-	Address      string
-	Email        string
-	Phone        string
-	TaxID        string
-	EmailSubject string
-	EmailBody    string
-	CreatedAt    string
-	UpdatedAt    string
+	ID                  int64
+	Name                string
+	CompanyName         string
+	Address             string
+	Email               string
+	Phone               string
+	TaxID               string
+	EmailSubject        string
+	EmailBody           string
+	InvoiceNumberPrefix string
+	Currency            string
+	InvoiceNotes        string
+	CreatedAt           string
+	UpdatedAt           string
 }
 
 func ListClients(db *sql.DB) ([]Client, error) {
 	rows, err := db.Query(`
-		SELECT id, name, company_name, address, email, phone, tax_id, email_subject, email_body, created_at, updated_at
+		SELECT id, name, company_name, address, email, phone, tax_id, email_subject, email_body, invoice_number_prefix, currency, invoice_notes, created_at, updated_at
 		FROM clients
 		ORDER BY name COLLATE NOCASE, id`)
 	if err != nil {
@@ -53,7 +56,7 @@ func ListClients(db *sql.DB) ([]Client, error) {
 func GetClient(db *sql.DB, id int64) (Client, error) {
 	var c Client
 	row := db.QueryRow(`
-		SELECT id, name, company_name, address, email, phone, tax_id, email_subject, email_body, created_at, updated_at
+		SELECT id, name, company_name, address, email, phone, tax_id, email_subject, email_body, invoice_number_prefix, currency, invoice_notes, created_at, updated_at
 		FROM clients
 		WHERE id = ?`, id)
 	if err := scanClient(row, &c); err != nil {
@@ -64,9 +67,9 @@ func GetClient(db *sql.DB, id int64) (Client, error) {
 
 func CreateClient(db *sql.DB, c Client) (int64, error) {
 	res, err := db.Exec(`
-		INSERT INTO clients (name, company_name, address, email, phone, tax_id, email_subject, email_body)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.Name, c.CompanyName, c.Address, c.Email, c.Phone, c.TaxID, c.EmailSubject, c.EmailBody)
+		INSERT INTO clients (name, company_name, address, email, phone, tax_id, email_subject, email_body, invoice_number_prefix, currency, invoice_notes)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.Name, c.CompanyName, c.Address, c.Email, c.Phone, c.TaxID, c.EmailSubject, c.EmailBody, c.InvoiceNumberPrefix, c.Currency, c.InvoiceNotes)
 	if err != nil {
 		return 0, fmt.Errorf("create client: %w", err)
 	}
@@ -81,10 +84,10 @@ func UpdateClient(db *sql.DB, c Client) error {
 	res, err := db.Exec(`
 		UPDATE clients
 		SET name = ?, company_name = ?, address = ?, email = ?, phone = ?, tax_id = ?,
-		    email_subject = ?, email_body = ?,
+		    email_subject = ?, email_body = ?, invoice_number_prefix = ?, currency = ?, invoice_notes = ?,
 		    updated_at = datetime('now')
 		WHERE id = ?`,
-		c.Name, c.CompanyName, c.Address, c.Email, c.Phone, c.TaxID, c.EmailSubject, c.EmailBody, c.ID)
+		c.Name, c.CompanyName, c.Address, c.Email, c.Phone, c.TaxID, c.EmailSubject, c.EmailBody, c.InvoiceNumberPrefix, c.Currency, c.InvoiceNotes, c.ID)
 	if err != nil {
 		return fmt.Errorf("update client %d: %w", c.ID, err)
 	}
@@ -130,11 +133,11 @@ type rowScanner interface {
 }
 
 func scanClient(row rowScanner, c *Client) error {
-	var companyName, address, email, phone, taxID, emailSubject, emailBody sql.NullString
+	var companyName, address, email, phone, taxID, emailSubject, emailBody, invoiceNumberPrefix, currency, invoiceNotes sql.NullString
 	if err := row.Scan(
 		&c.ID, &c.Name, &companyName, &address,
 		&email, &phone, &taxID,
-		&emailSubject, &emailBody,
+		&emailSubject, &emailBody, &invoiceNumberPrefix, &currency, &invoiceNotes,
 		&c.CreatedAt, &c.UpdatedAt,
 	); err != nil {
 		return err
@@ -146,5 +149,8 @@ func scanClient(row rowScanner, c *Client) error {
 	c.TaxID = taxID.String
 	c.EmailSubject = emailSubject.String
 	c.EmailBody = emailBody.String
+	c.InvoiceNumberPrefix = invoiceNumberPrefix.String
+	c.Currency = currency.String
+	c.InvoiceNotes = invoiceNotes.String
 	return nil
 }

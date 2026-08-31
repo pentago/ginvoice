@@ -60,17 +60,11 @@ func (h *CompanyHandler) SaveSettings(w http.ResponseWriter, r *http.Request) {
 		Phone:               r.FormValue("phone"),
 		TaxID:               r.FormValue("tax_id"),
 		IBAN:                r.FormValue("iban"),
-		DefaultCurrency:     r.FormValue("default_currency"),
 		DefaultTaxRateBPS:   taxBPS,
-		InvoiceNumberPrefix: r.FormValue("invoice_number_prefix"),
 		DefaultEmailSubject: r.FormValue("default_email_subject"),
 		DefaultEmailBody:    r.FormValue("default_email_body"),
-	}
-	if c.InvoiceNumberPrefix == "" {
-		c.InvoiceNumberPrefix = "INV"
-	}
-	if c.DefaultCurrency == "" {
-		c.DefaultCurrency = "EUR"
+		InvoiceNotes:        r.FormValue("invoice_notes"),
+		PdfConfig:           r.FormValue("pdf_config"),
 	}
 
 	// handle logo upload; keep existing logo when no new file is posted

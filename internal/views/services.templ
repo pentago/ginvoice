@@ -28,25 +28,23 @@ templ ServicesPage(services []store.Service) {
 				<h1>Services</h1>
 				<p><a href="/services/new" class="btn btn-success">Add service</a></p>
 				if len(services) == 0 {
-					<p>No services yet.</p>
+					<p>No services yet. Create your first service to get started.</p>
 				} else {
 					<table>
-						<thead>
+					<thead>
+						<tr>
+							<th>Name</th>
+							<th>Unit</th>
+							<th>Price</th>
+							<th>Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, s := range services {
 							<tr>
-								<th>Name</th>
-								<th>Description</th>
-								<th>Unit</th>
-								<th>Price</th>
-								<th>Actions</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, s := range services {
-								<tr>
-									<td>{ s.Name }</td>
-									<td>{ s.Description }</td>
-									<td>{ s.Unit }</td>
-									<td>{ formatCents(s.DefaultUnitPrice) }</td>
+								<td>{ s.Name }</td>
+								<td>{ s.Unit }</td>
+								<td>{ formatCents(s.DefaultUnitPrice) }</td>
 									<td>
 								<div class="action-buttons">
 									<a href={ fmt.Sprintf("/services/%d/edit", s.ID) } class="btn btn-secondary">Edit</a>
@@ -114,9 +112,6 @@ templ ServiceForm(s store.Service, action string) {
 	<form method="post" action={ action } class="card">
 		<label for="name">Name</label>
 		<input type="text" id="name" name="name" value={ s.Name } required/>
-
-		<label for="description">Description *</label>
-		<textarea id="description" name="description" required>{ s.Description }</textarea>
 
 		<label for="unit">Unit</label>
 		<input type="text" id="unit" name="unit" value={ s.Unit } placeholder="item"/>

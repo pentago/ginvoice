@@ -110,8 +110,7 @@ func (h *InvoicesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get company for defaults
-	company, ok, err := store.GetCompany(h.DB)
+	_, ok, err := store.GetCompany(h.DB)
 	if err != nil {
 		log.Printf("get company: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -122,22 +121,23 @@ func (h *InvoicesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set defaults from company
-	inv.Currency = company.DefaultCurrency
+	inv.Subtotal, inv.DiscountAmount, inv.TaxAmount, inv.Total = store.ComputeTotals(lines, inv.TaxRate, inv.DiscountBPS)
+
+	client, err := store.GetClient(h.DB, inv.ClientID)
+	if err != nil {
+		log.Printf("get client for invoice number: %v", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	inv.Currency = client.Currency
 	if inv.Currency == "" {
 		inv.Currency = "EUR"
 	}
 
-	// Use tax rate from form (always provided by the form element)
-	// The form shows the company default on page load; user can override.
-
-	// Compute totals
-	inv.Subtotal, inv.TaxAmount, inv.Total = store.ComputeTotals(lines, inv.TaxRate)
-
-	// Generate invoice number
 	now := time.Now()
 	year := now.Year()
-	prefix := company.InvoiceNumberPrefix
+	prefix := client.InvoiceNumberPrefix
 	if prefix == "" {
 		prefix = "INV"
 	}
@@ -254,7 +254,7 @@ func (h *InvoicesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	updatedInv.Currency = inv.Currency
 
 	// Recompute totals
-	updatedInv.Subtotal, updatedInv.TaxAmount, updatedInv.Total = store.ComputeTotals(lines, updatedInv.TaxRate)
+	updatedInv.Subtotal, updatedInv.DiscountAmount, updatedInv.TaxAmount, updatedInv.Total = store.ComputeTotals(lines, updatedInv.TaxRate, updatedInv.DiscountBPS)
 
 	if err := store.UpdateInvoice(h.DB, updatedInv, lines); err != nil {
 		log.Printf("update invoice %d: %v", id, err)
@@ -292,12 +292,20 @@ func (h *InvoicesHandler) parseInvoiceForm(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	discountBPS := int64(0)
+	if discountPct := r.FormValue("discount_pct"); discountPct != "" {
+		if f, err := strconv.ParseFloat(discountPct, 64); err == nil {
+			discountBPS = int64(f * 100)
+		}
+	}
+
 	inv := store.Invoice{
-		ClientID:  clientID,
-		IssueDate: issueDate,
-		DueDate:   strings.TrimSpace(r.FormValue("due_date")),
-		Notes:     strings.TrimSpace(r.FormValue("notes")),
-		TaxRate:   taxRateBPS,
+		ClientID:    clientID,
+		IssueDate:   issueDate,
+		DueDate:     strings.TrimSpace(r.FormValue("due_date")),
+		Notes:       strings.TrimSpace(r.FormValue("notes")),
+		TaxRate:     taxRateBPS,
+		DiscountBPS: discountBPS,
 	}
 
 	// Parse line items
@@ -328,8 +336,8 @@ func (h *InvoicesHandler) parseInvoiceForm(w http.ResponseWriter, r *http.Reques
 		unitPrice := svc.DefaultUnitPrice
 
 		lines = append(lines, store.InvoiceLine{
-			ServiceID:   &sid,
-			Description: svc.Description,
+				ServiceID:   &sid,
+				Description: svc.Name,
 			Quantity:    qty,
 			UnitPrice:   unitPrice,
 			SortOrder:   i,
@@ -380,7 +388,7 @@ func (h *InvoicesHandler) invoicePDF(w http.ResponseWriter, r *http.Request, id 
 		return nil, "", false
 	}
 
-	raw, err := pdf.RenderInvoice(inv, company)
+	raw, err := pdf.RenderInvoiceWithConfig(inv, company, pdf.LoadConfig(company.PdfConfig))
 	if err != nil {
 		log.Printf("render invoice %d pdf: %v", id, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -481,7 +489,7 @@ func (h *InvoicesHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	raw, err := pdf.RenderInvoice(inv, company)
+	raw, err := pdf.RenderInvoiceWithConfig(inv, company, pdf.LoadConfig(company.PdfConfig))
 	if err != nil {
 		log.Printf("render invoice %d pdf: %v", id, err)
 		writeEmailAlert(w, "error", "failed to render PDF")
@@ -545,8 +553,80 @@ func (h *InvoicesHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `<span id="email-btn" hx-swap-oob="outerHTML"></span>`)
 }
 
+// Delete handles POST /invoices/{id}/delete u2014 deletes a draft invoice.
+func (h *InvoicesHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.pathID(w, r)
+	if !ok {
+		return
+	}
+	if err := store.DeleteInvoice(h.DB, id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.NotFound(w, r)
+			return
+		}
+		if errors.Is(err, store.ErrInvoiceNotDraft) {
+			http.Error(w, "invoice is not in draft status", http.StatusConflict)
+			return
+		}
+		h.invoiceError(w, r, err)
+		return
+	}
+	if r.Header.Get("HX-Request") != "" {
+		w.WriteHeader(http.StatusOK) // empty body: hx-swap="outerHTML" removes the row
+		return
+	}
+	http.Redirect(w, r, "/invoices", http.StatusSeeOther)
+}
+
 func writeEmailAlert(w http.ResponseWriter, class, msg string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, `<div class="alert alert-%s">%s</div>`, class, html.EscapeString(msg))
+}
+
+// BatchDelete handles POST /invoices/delete — deletes multiple invoices by ID.
+func (h *InvoicesHandler) BatchDelete(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	ids := r.Form["invoice_ids"]
+	if len(ids) == 0 {
+		http.Error(w, "no invoices selected", http.StatusBadRequest)
+		return
+	}
+
+	var deleted, failed int
+	for _, idStr := range ids {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			failed++
+			continue
+		}
+		if err := store.DeleteInvoice(h.DB, id); err != nil {
+			if errors.Is(err, store.ErrInvoiceNotDraft) {
+				failed++
+				continue
+			}
+			failed++
+			continue
+		}
+		deleted++
+	}
+
+	if r.Header.Get("HX-Request") != "" {
+		w.Header().Set("Content-Type", "text/html")
+		if failed > 0 {
+			fmt.Fprintf(w, `<div class="alert alert-warning">Deleted %d invoice(s), %d failed (not draft).</div>`, deleted, failed)
+		} else {
+			fmt.Fprintf(w, `<div class="alert alert-success">Deleted %d invoice(s).</div>`, deleted)
+		}
+		return
+	}
+
+	if failed > 0 {
+		http.Redirect(w, r, "/invoices?deleted="+strconv.Itoa(deleted)+"&failed="+strconv.Itoa(failed), http.StatusSeeOther)
+	} else {
+		http.Redirect(w, r, "/invoices", http.StatusSeeOther)
+	}
 }

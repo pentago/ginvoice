@@ -1,4 +1,3 @@
-// Package pdf renders invoices as PDF documents using maroto v2.
 package pdf
 
 import (
@@ -6,24 +5,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/johnfercher/maroto/v2"
-	"github.com/johnfercher/maroto/v2/pkg/components/col"
-	"github.com/johnfercher/maroto/v2/pkg/components/image"
-	"github.com/johnfercher/maroto/v2/pkg/components/row"
-	"github.com/johnfercher/maroto/v2/pkg/components/text"
-	"github.com/johnfercher/maroto/v2/pkg/config"
-	"github.com/johnfercher/maroto/v2/pkg/consts/align"
-	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
-	"github.com/johnfercher/maroto/v2/pkg/core"
-	"github.com/johnfercher/maroto/v2/pkg/props"
-	"github.com/johnfercher/maroto/v2/pkg/consts/extension"
+	"github.com/gpdf-dev/gpdf/document"
+	"github.com/gpdf-dev/gpdf/pdf"
+	"github.com/gpdf-dev/gpdf/template"
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/goregular"
 
 	"ginvoice/internal/store"
 )
 
-// formatMoney formats integer cents as an amount with exactly two decimal
-// places, prefixed by the currency code when one is given. Cents are always
-// divided by 100 before display — raw cents must never appear in a PDF.
+const fontFamily = "goregular"
+
 func formatMoney(cents int64, currency string) string {
 	amount := fmt.Sprintf("%.2f", float64(cents)/100)
 	if currency == "" {
@@ -32,180 +24,257 @@ func formatMoney(cents int64, currency string) string {
 	return currency + " " + amount
 }
 
+func hexColor(hex string) pdf.Color {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) != 6 {
+		return pdf.Black
+	}
+	r, g, b := 0, 0, 0
+	fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
+	return pdf.RGB(float64(r)/255, float64(g)/255, float64(b)/255)
+}
 
-// RenderInvoice generates a compressed PDF for the given invoice and company.
 func RenderInvoice(inv store.Invoice, company store.Company) ([]byte, error) {
-	cfg := config.NewBuilder().
-		WithPageNumber(props.PageNumber{Pattern: "Page {current} of {total}"}).
-		WithCompression(true).
-		Build()
+	return RenderInvoiceWithConfig(inv, company, DefaultConfig())
+}
 
-	m := maroto.New(cfg)
+func RenderInvoiceWithConfig(inv store.Invoice, company store.Company, cfg TemplateConfig) ([]byte, error) {
+	accent := hexColor(cfg.AccentColor)
+	textCol := hexColor(cfg.TextColor)
+	muted := hexColor(cfg.MutedColor)
+	divider := hexColor(cfg.DividerColor)
 
-	addCompanyHeader(m, company)
-
-	// Invoice title + dates.
-	m.AddRows(row.New(4))
-	m.AddRows(row.New(10).Add(
-		col.New(6).Add(text.New("INVOICE "+inv.Number, props.Text{Size: 14, Style: fontstyle.Bold})),
-		col.New(6).Add(text.New(dateLine("Issued", inv.IssueDate), props.Text{Align: align.Right})),
-	))
-	if inv.DueDate != "" {
-		m.AddRows(row.New(6).Add(
-			col.New(12).Add(text.New(dateLine("Due", inv.DueDate), props.Text{Align: align.Right})),
-		))
-	}
-
-	// Client block.
-	if inv.Client.Name != "" || inv.Client.CompanyName != "" {
-		m.AddRows(row.New(4))
-		m.AddRows(row.New(8).Add(
-			col.New(12).Add(text.New("Bill To:", props.Text{Style: fontstyle.Bold})),
-		))
-		displayName := inv.Client.Name
-		if inv.Client.CompanyName != "" {
-			if displayName != "" {
-				displayName += " (" + inv.Client.CompanyName + ")"
-			} else {
-				displayName = inv.Client.CompanyName
-			}
-		}
-		m.AddRows(row.New().Add(col.New(12).Add(text.New(displayName))))
-		for _, l := range []string{inv.Client.Address, inv.Client.Email} {
-			if l != "" {
-				m.AddRows(row.New().Add(col.New(12).Add(text.New(l))))
-			}
-		}
-	}
-
-	// Line items table.
 	currency := inv.Currency
 	if currency == "" {
 		currency = "EUR"
 	}
-	m.AddRows(row.New(4))
-	m.AddRows(row.New(8).Add(
-		col.New(6).Add(text.New("Description", props.Text{Style: fontstyle.Bold})),
-		col.New(2).Add(text.New("Qty", props.Text{Style: fontstyle.Bold, Align: align.Right})),
-		col.New(2).Add(text.New("Unit Price", props.Text{Style: fontstyle.Bold, Align: align.Right})),
-		col.New(2).Add(text.New("Total", props.Text{Style: fontstyle.Bold, Align: align.Right})),
-	))
-	for _, line := range inv.Lines {
-		m.AddRows(row.New(6).Add(
-			col.New(6).Add(text.New(line.Description)),
-			col.New(2).Add(text.New(fmt.Sprintf("%.2f", line.Quantity), props.Text{Align: align.Right})),
-			col.New(2).Add(text.New(formatMoney(line.UnitPrice, ""), props.Text{Align: align.Right})),
-			col.New(2).Add(text.New(formatMoney(line.LineTotal, ""), props.Text{Align: align.Right})),
-		))
-	}
 
-	// Totals.
-	m.AddRows(row.New(4))
-	m.AddRows(row.New(6).Add(
-		col.New(10).Add(text.New("Subtotal", props.Text{Align: align.Right})),
-		col.New(2).Add(text.New(formatMoney(inv.Subtotal, ""), props.Text{Align: align.Right})),
-	))
-	taxPct := float64(inv.TaxRate) / 100 // basis points -> percent
-	m.AddRows(row.New(6).Add(
-		col.New(10).Add(text.New(fmt.Sprintf("Tax (%.2f%%)", taxPct), props.Text{Align: align.Right})),
-		col.New(2).Add(text.New(formatMoney(inv.TaxAmount, ""), props.Text{Align: align.Right})),
-	))
-	m.AddRows(row.New(8).Add(
-		col.New(10).Add(text.New("TOTAL "+currency, props.Text{Style: fontstyle.Bold, Align: align.Right})),
-		col.New(2).Add(text.New(formatMoney(inv.Total, ""), props.Text{Style: fontstyle.Bold, Align: align.Right})),
-	))
+	doc := template.New(
+		template.WithFont(fontFamily, goregular.TTF),
+		template.WithFont(fontFamily+"-Bold", gobold.TTF),
+		template.WithDefaultFont(fontFamily, cfg.BodySize),
+		template.WithPageSize(document.A4),
+		template.WithMargins(document.UniformEdges(document.Mm(cfg.MarginMM))),
+		template.WithMetadata(document.DocumentMetadata{
+			Title:  "Invoice " + inv.Number,
+			Author: company.Name,
+		}),
+	)
 
-	// Notes.
-	if inv.Notes != "" {
-		m.AddRows(row.New(4))
-		m.AddRows(row.New().Add(
-			col.New(12).Add(text.New("Notes: "+inv.Notes)),
-		))
-	}
+	page := doc.AddPage()
 
-	doc, err := m.Generate()
-	if err != nil {
-		return nil, fmt.Errorf("maroto generate: %w", err)
-	}
-	return doc.GetBytes(), nil
-}
-
-// addCompanyHeader renders the logo (from embedded base64 data) next to the
-// company contact block.
-func addCompanyHeader(m core.Maroto, company store.Company) {
-	infoCols := func(size int) []core.Col {
-		cols := []core.Col{
-			col.New(size).Add(text.New(company.Name, props.Text{Size: 16, Style: fontstyle.Bold})),
-		}
-		details := []string{company.Address, company.Email}
-		if company.TaxID != "" {
-			details = append(details, "Tax ID: "+company.TaxID)
-		}
-		for _, d := range details {
-			if d == "" {
-				continue
+	// ── 1. Title + logo ──
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(8, func(c *template.ColBuilder) {
+			c.Text("INVOICE", template.FontSize(cfg.HeadingSize), template.Bold(), template.TextColor(accent))
+		})
+		r.Col(4, func(c *template.ColBuilder) {
+			if company.LogoData != "" {
+				if logoBytes, ok := decodeDataURI(company.LogoData); ok {
+					c.Image(logoBytes, template.FitHeight(document.Mm(20)))
+				}
 			}
-			cols = append(cols, col.New(size).Add(text.New(d)))
-		}
-		return cols
+		})
+	})
+
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(12, func(c *template.ColBuilder) { c.Spacer(document.Mm(16)) })
+	})
+
+	// ── 2. Three-column header: issued to | invoice info | from ──
+	labelStyle := []template.TextOption{
+		template.FontSize(cfg.LabelSize), template.Bold(), template.TextColor(muted),
+	}
+	bodyStyle := []template.TextOption{
+		template.FontSize(cfg.BodySize), template.TextColor(textCol),
 	}
 
-	logoCol := 0
-	var logoRow core.Row
-	if company.LogoData != "" {
-		if logoBytes, ext, ok := decodeDataURI(company.LogoData); ok {
-			logoCol = 3
-			logoRow = row.New(18).Add(
-				col.New(logoCol).Add(image.NewFromBytes(logoBytes, ext)),
+	clientName := inv.Client.CompanyName
+	if clientName == "" {
+		clientName = inv.Client.Name
+	}
+	clientLines := filterEmpty([]string{clientName, inv.Client.Address, inv.Client.Email})
+
+	companyLines := filterEmpty([]string{company.Name, company.Address})
+	bankingLines := filterEmpty([]string{
+		strIf(company.IBAN != "", "IBAN: "+company.IBAN),
+		strIf(company.TaxID != "", "Tax ID: "+company.TaxID),
+	})
+
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(4, func(c *template.ColBuilder) {
+			c.Text("ISSUED TO:", labelStyle...)
+			for _, line := range clientLines {
+				c.Text(line, bodyStyle...)
+			}
+		})
+		r.Col(4, func(c *template.ColBuilder) {
+			c.Text("INVOICE NO:", labelStyle...)
+			c.Text(inv.Number, bodyStyle...)
+			c.Text("DATE:", labelStyle...)
+			c.Text(inv.IssueDate, bodyStyle...)
+			if inv.DueDate != "" {
+				c.Text("DUE DATE:", labelStyle...)
+				c.Text(inv.DueDate, bodyStyle...)
+			}
+		})
+		r.Col(4, func(c *template.ColBuilder) {
+			c.Text("FROM:", labelStyle...)
+			for _, line := range companyLines {
+				c.Text(line, bodyStyle...)
+			}
+			for _, line := range bankingLines {
+				c.Text(line, bodyStyle...)
+			}
+		})
+	})
+
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(12, func(c *template.ColBuilder) { c.Spacer(document.Mm(16)) })
+	})
+
+	// ── 3. Table ──
+	header := []string{"SERVICE", "CURRENCY", "RATE", "QTY", "TOTAL"}
+
+	rows := make([][]string, len(inv.Lines))
+	for i, line := range inv.Lines {
+		rows[i] = []string{
+			line.Description,
+			currency,
+			formatMoney(line.UnitPrice, ""),
+			fmt.Sprintf("%.2f", line.Quantity),
+			formatMoney(line.LineTotal, ""),
+		}
+	}
+
+	theaderOpts := []template.TextOption{template.TextColor(textCol), template.Bold()}
+	if cfg.TableHeaderBg != "" {
+		theaderOpts = append(theaderOpts, template.BgColor(hexColor(cfg.TableHeaderBg)))
+	}
+
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(12, func(c *template.ColBuilder) {
+			c.Table(header, rows,
+				template.ColumnWidths(45, 15, 15, 10, 15),
+				template.TableHeaderStyle(theaderOpts...),
 			)
+		})
+	})
+
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(12, func(c *template.ColBuilder) {
+			c.Spacer(document.Mm(5))
+			c.Line(template.LineColor(divider), template.LineThickness(document.Pt(0.5)))
+			c.Spacer(document.Mm(5))
+		})
+	})
+
+	// ── 4. Totals ──
+	totLabel := []template.TextOption{
+		template.FontSize(cfg.BodySize), template.Bold(), template.TextColor(accent), template.AlignRight(),
+	}
+	totVal := []template.TextOption{
+		template.FontSize(cfg.BodySize), template.Bold(), template.TextColor(accent), template.AlignRight(),
+	}
+	taxStyle := []template.TextOption{
+		template.FontSize(cfg.BodySize), template.TextColor(textCol), template.AlignRight(),
+	}
+	bigLabel := []template.TextOption{
+		template.FontSize(cfg.LabelSize + 2), template.Bold(), template.TextColor(accent), template.AlignRight(),
+	}
+	bigVal := []template.TextOption{
+		template.FontSize(cfg.LabelSize + 2), template.Bold(), template.TextColor(accent), template.AlignRight(),
+	}
+
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(9, func(c *template.ColBuilder) { c.Text("SUBTOTAL", totLabel...) })
+		r.Col(3, func(c *template.ColBuilder) { c.Text(formatMoney(inv.Subtotal, currency), totVal...) })
+	})
+
+	if inv.DiscountBPS > 0 {
+		discountPct := float64(inv.DiscountBPS) / 100
+		page.AutoRow(func(r *template.RowBuilder) {
+			r.Col(9, func(c *template.ColBuilder) {
+				c.Text(fmt.Sprintf("DISCOUNT (%.2f%%)", discountPct), totLabel...)
+			})
+			r.Col(3, func(c *template.ColBuilder) {
+				c.Text("- "+formatMoney(inv.DiscountAmount, currency), totVal...)
+			})
+		})
+	}
+
+	if inv.TaxRate > 0 {
+		taxPct := float64(inv.TaxRate) / 100
+		page.AutoRow(func(r *template.RowBuilder) {
+			r.Col(9, func(c *template.ColBuilder) {
+				c.Text(fmt.Sprintf("Tax (%.2f%%)", taxPct), taxStyle...)
+			})
+			r.Col(3, func(c *template.ColBuilder) {
+				c.Text(formatMoney(inv.TaxAmount, currency), taxStyle...)
+			})
+		})
+	}
+
+	page.AutoRow(func(r *template.RowBuilder) {
+		r.Col(9, func(c *template.ColBuilder) { c.Text("TOTAL", bigLabel...) })
+		r.Col(3, func(c *template.ColBuilder) { c.Text(formatMoney(inv.Total, currency), bigVal...) })
+	})
+
+	invoiceNotes := inv.Client.InvoiceNotes
+	if invoiceNotes == "" {
+		invoiceNotes = company.InvoiceNotes
+	}
+	if invoiceNotes != "" {
+		page.AutoRow(func(r *template.RowBuilder) {
+			r.Col(12, func(c *template.ColBuilder) {
+				c.Spacer(document.Mm(8))
+				c.Text("NOTES:", labelStyle...)
+				c.Text(invoiceNotes, bodyStyle...)
+			})
+		})
+	}
+
+	if cfg.ShowNotes && inv.Notes != "" {
+		page.AutoRow(func(r *template.RowBuilder) {
+			r.Col(12, func(c *template.ColBuilder) {
+				c.Spacer(document.Mm(8))
+				c.Text("NOTE:", labelStyle...)
+				c.Text(inv.Notes, bodyStyle...)
+			})
+		})
+	}
+
+	return doc.Generate()
+}
+
+func strIf(cond bool, s string) string {
+	if cond {
+		return s
+	}
+	return ""
+}
+
+func filterEmpty(lines []string) []string {
+	var out []string
+	for _, l := range lines {
+		if strings.TrimSpace(l) != "" {
+			out = append(out, l)
 		}
 	}
-
-	if logoRow != nil {
-		m.AddRows(logoRow)
-		m.AddRows(row.New().Add(infoCols(12-logoCol)...))
-		return
-	}
-	m.AddRows(row.New().Add(infoCols(12)...))
+	return out
 }
 
-// decodeDataURI extracts raw bytes and a maroto extension type from a
-// data:image/...;base64,... URI. Returns ok=false if the URI is malformed
-// or the MIME type is not a supported image format.
-func decodeDataURI(dataURI string) ([]byte, extension.Type, bool) {
-	// data:image/png;base64,<data>
-	const prefix = "data:"
-	if !strings.HasPrefix(dataURI, prefix) {
-		return nil, "", false
+func decodeDataURI(dataURI string) ([]byte, bool) {
+	if !strings.HasPrefix(dataURI, "data:") {
+		return nil, false
 	}
-	semiIdx := strings.Index(dataURI, ";")
 	base64Idx := strings.Index(dataURI, ";base64,")
-	if semiIdx < 0 || base64Idx < 0 {
-		return nil, "", false
+	if base64Idx < 0 {
+		return nil, false
 	}
-	mimeType := dataURI[len(prefix):semiIdx]
-	b64Data := dataURI[base64Idx+len(";base64,"):]
-	decoded, err := base64.StdEncoding.DecodeString(b64Data)
+	decoded, err := base64.StdEncoding.DecodeString(dataURI[base64Idx+len(";base64,"):])
 	if err != nil {
-		return nil, "", false
+		return nil, false
 	}
-	var ext extension.Type
-	switch mimeType {
-	case "image/png":
-		ext = extension.Png
-	case "image/jpeg":
-		ext = extension.Jpg
-	default:
-		return nil, "", false
-	}
-	return decoded, ext, true
-}
-
-// dateLine formats a labelled date, returning empty for blank input so the
-// caller can skip rendering entirely.
-func dateLine(label, date string) string {
-	if date == "" {
-		return ""
-	}
-	return label + ": " + date
+	return decoded, true
 }

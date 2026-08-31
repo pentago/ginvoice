@@ -1,12 +1,13 @@
 package main
 
-	import (
+import (
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-
+	"strings"
+	"time"
 
 	"ginvoice/internal/config"
 	_ "ginvoice/internal/deps"
@@ -20,9 +21,8 @@ package main
 
 const (
 	dataDir = "/data"
-	dbPath   = "/data/ginvoice.db"
+	dbPath  = "/data/ginvoice.db"
 )
-
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
@@ -100,6 +100,8 @@ func main() {
 	protected.HandleFunc("GET /invoices/{id}/pdf", ih.DownloadPDF)
 	protected.HandleFunc("POST /invoices/{id}/save", ih.SavePDF)
 	protected.HandleFunc("POST /invoices/{id}/email", ih.SendEmail)
+	protected.HandleFunc("POST /invoices/{id}/delete", ih.Delete)
+	protected.HandleFunc("POST /invoices/delete", ih.BatchDelete)
 	authMiddleware := middleware.Auth(cfg.TrustedProxyCIDR, cfg.AuthHeader)
 	protected.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

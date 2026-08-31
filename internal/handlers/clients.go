@@ -130,14 +130,17 @@ func (h *ClientsHandler) clientFromForm(w http.ResponseWriter, r *http.Request) 
 		return store.Client{}, false
 	}
 	c := store.Client{
-		Name:         strings.TrimSpace(r.FormValue("name")),
-		CompanyName:  strings.TrimSpace(r.FormValue("company_name")),
-		Address:      strings.TrimSpace(r.FormValue("address")),
-		Email:        strings.TrimSpace(r.FormValue("email")),
-		Phone:        strings.TrimSpace(r.FormValue("phone")),
-		TaxID:        strings.TrimSpace(r.FormValue("tax_id")),
-		EmailSubject: r.FormValue("email_subject"),
-		EmailBody:    r.FormValue("email_body"),
+		Name:                strings.TrimSpace(r.FormValue("name")),
+		CompanyName:         strings.TrimSpace(r.FormValue("company_name")),
+		Address:             strings.TrimSpace(r.FormValue("address")),
+		Email:               strings.TrimSpace(r.FormValue("email")),
+		Phone:               strings.TrimSpace(r.FormValue("phone")),
+		TaxID:               strings.TrimSpace(r.FormValue("tax_id")),
+		EmailSubject:        r.FormValue("email_subject"),
+		EmailBody:           r.FormValue("email_body"),
+		InvoiceNumberPrefix: strings.TrimSpace(r.FormValue("invoice_number_prefix")),
+		Currency:            strings.ToUpper(strings.TrimSpace(r.FormValue("currency"))),
+		InvoiceNotes:        r.FormValue("invoice_notes"),
 	}
 	if c.Name == "" {
 		http.Error(w, "name is required", http.StatusBadRequest)

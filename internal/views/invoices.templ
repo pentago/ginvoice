@@ -103,10 +103,10 @@ templ InvoicesPage(invoices []store.Invoice) {
 			@Nav()
 			<main class="container">
 				<h1>Invoices</h1>
-				if len(invoices) == 0 {
-					<p>No invoices yet. Create your first invoice to get started.</p>
-					<p><a href="/invoices/new" class="btn btn-success">Create Invoice</a></p>
-				} else {
+			if len(invoices) == 0 {
+				<p><a href="/invoices/new" class="btn btn-success">Create Invoice</a></p>
+				<p>No invoices yet. Create your first invoice to get started.</p>
+			} else {
 					<div class="invoices-toolbar">
 						<div class="toolbar-search">
 							<input type="search" id="invoice-search" placeholder="Search client, prefix, number, amount…" autocomplete="off"/>
@@ -138,12 +138,14 @@ templ InvoicesPage(invoices []store.Invoice) {
 							</select>
 						</div>
 						<div class="toolbar-actions">
+							<button type="button" id="delete-selected-btn" class="btn btn-danger" style="display: none;">Delete Selected</button>
 							<a href="/invoices/new" class="btn btn-success">Create Invoice</a>
 						</div>
 					</div>
 					<table id="invoices-table">
 						<thead>
 							<tr>
+								<th><input type="checkbox" id="select-all-invoices" aria-label="Select all invoices"></th>
 								<th><button type="button" class="sort-btn" data-sort="client">Client <span class="sort-arrow" aria-hidden="true"></span></button></th>
 								<th><button type="button" class="sort-btn" data-sort="prefix">Prefix <span class="sort-arrow" aria-hidden="true"></span></button></th>
 								<th><button type="button" class="sort-btn" data-sort="number">Number <span class="sort-arrow" aria-hidden="true"></span></button></th>
@@ -255,47 +257,82 @@ templ InvoicesPage(invoices []store.Invoice) {
 						el.addEventListener("change", applyFilters);
 					});
 
-					// --- Kebab menu ---
-					document.addEventListener("click", function(e) {
-						var trigger = e.target.closest(".kebab-btn");
-						if (trigger) {
-							var menu = trigger.parentElement.querySelector(".kebab-menu");
-							var open = menu.hasAttribute("data-open");
-							closeAllMenus();
-							if (!open) {
-								menu.setAttribute("data-open", "");
-								trigger.setAttribute("aria-expanded", "true");
-								var rect = trigger.getBoundingClientRect();
-								menu.style.right = (window.innerWidth - rect.right) + "px";
-								if (rect.bottom + menu.offsetHeight + 8 > window.innerHeight) {
-									menu.style.top = "";
-									menu.style.bottom = (window.innerHeight - rect.top + 4) + "px";
-								} else {
-									menu.style.bottom = "";
-									menu.style.top = (rect.bottom + 4) + "px";
-								}
-							}
-							return;
-						}
-						if (!e.target.closest(".kebab-menu")) {
-							closeAllMenus();
-						}
-					});
-					document.addEventListener("keydown", function(e) {
-						if (e.key === "Escape") closeAllMenus();
-					});
-					function closeAllMenus() {
-						document.querySelectorAll(".kebab-menu[data-open]").forEach(function(m) {
-							m.removeAttribute("data-open");
-							m.style.top = "";
-							m.style.bottom = "";
-							m.style.right = "";
-							var t = m.parentElement.querySelector(".kebab-btn");
-							if (t) t.setAttribute("aria-expanded", "false");
-						});
+					// --- Select all / Delete selected ---
+					var selectAll = document.getElementById("select-all-invoices");
+					var deleteBtn = document.getElementById("delete-selected-btn");
+					var checkboxes = document.querySelectorAll(".invoice-checkbox");
+
+					function updateDeleteButton() {
+						var checked = document.querySelectorAll(".invoice-checkbox:checked").length;
+						deleteBtn.style.display = checked > 0 ? "inline-block" : "none";
 					}
 
+					selectAll.addEventListener("change", function() {
+						checkboxes.forEach(function(cb) { cb.checked = selectAll.checked; });
+						updateDeleteButton();
+					});
+
+					document.addEventListener("change", function(e) {
+						if (e.target.classList.contains("invoice-checkbox")) {
+							updateDeleteButton();
+							// if all visible checkboxes are checked, check select-all too
+							var visible = Array.from(checkboxes).filter(function(cb) { return cb.offsetParent !== null; });
+							var checkedVisible = visible.filter(function(cb) { return cb.checked; });
+							selectAll.checked = visible.length > 0 && checkedVisible.length === visible.length;
+							selectAll.indeterminate = checkedVisible.length > 0 && checkedVisible.length < visible.length;
+						}
+					});
+
+					deleteBtn.addEventListener("click", function() {
+						var checked = document.querySelectorAll(".invoice-checkbox:checked");
+						if (checked.length === 0) return;
+						if (!confirm("Delete " + checked.length + " selected invoice(s)? This cannot be undone.")) return;
+						var ids = Array.from(checked).map(function(cb) { return cb.dataset.invoiceId; });
+						fetch("/invoices/delete", {
+							method: "POST",
+							headers: { "Content-Type": "application/x-www-form-urlencoded" },
+							body: "invoice_ids=" + ids.join("&invoice_ids=")
+						}).then(function(res) {
+							if (res.ok) {
+								location.reload();
+							} else {
+								alert("Failed to delete invoices");
+							}
+						});
+					});
+
 					applyFilters();
+				})();
+
+				(function() {
+					function closeAll() {
+						document.querySelectorAll('.kebab-menu[data-open]').forEach(function(m) {
+							delete m.dataset.open;
+							var btn = m.previousElementSibling;
+							if (btn) btn.setAttribute('aria-expanded', 'false');
+						});
+					}
+					document.addEventListener('click', function(e) {
+						var btn = e.target.closest('.kebab-btn');
+						if (btn) {
+							var menu = btn.nextElementSibling;
+							var isOpen = menu.hasAttribute('data-open');
+							closeAll();
+							if (!isOpen) {
+								var r = btn.getBoundingClientRect();
+								menu.style.top = (r.bottom + 4) + 'px';
+								menu.style.right = (window.innerWidth - r.right) + 'px';
+								menu.dataset.open = '';
+								btn.setAttribute('aria-expanded', 'true');
+							}
+							e.stopPropagation();
+						} else if (!e.target.closest('.kebab-menu')) {
+							closeAll();
+						}
+					});
+					document.addEventListener('keydown', function(e) {
+						if (e.key === 'Escape') closeAll();
+					});
 				})();
 			</script>
 		</body>
@@ -320,6 +357,7 @@ templ InvoiceRow(inv store.Invoice) {
 		data-status={ inv.Status }
 		data-search={ strings.ToLower(inv.Client.Name + " " + prefix + " " + rest + " " + inv.Number + " " + amountStr) }
 	>
+		<td><input type="checkbox" class="invoice-checkbox" data-invoice-id={ fmt.Sprintf("%d", inv.ID) }></td>
 		<td>{ inv.Client.Name }</td>
 		<td>{ prefix }</td>
 		<td>{ rest }</td>
@@ -385,6 +423,12 @@ templ InvoiceForm(clients []store.Client, services []store.Service, invoice stor
 			<label for="tax_rate_pct">Tax Rate (%)</label>
 			<input type="number" step="0.01" min="0" id="tax_rate_pct" name="tax_rate_pct"
 				value={ fmt.Sprintf("%.2f", float64(invoice.TaxRate)/100) }/>
+		</div>
+
+		<div class="form-group">
+			<label for="discount_pct">Discount (%)</label>
+			<input type="number" step="0.01" min="0" max="100" id="discount_pct" name="discount_pct"
+				value={ fmt.Sprintf("%.2f", float64(invoice.DiscountBPS)/100) }/>
 		</div>
 
 		<div class="form-group">
@@ -515,12 +559,15 @@ templ InvoicePage(inv store.Invoice) {
 					<p>No line items.</p>
 				}
 
-				<div class="invoice-totals">
-					<p><strong>Subtotal:</strong> { formatCents(inv.Subtotal) }</p>
-					<p><strong>Tax Rate:</strong> { fmt.Sprintf("%.2f%%", float64(inv.TaxRate)/100) }</p>
-					<p><strong>Tax Amount:</strong> { formatCents(inv.TaxAmount) }</p>
-					<p><strong>Total:</strong> { formatCents(inv.Total) }</p>
-				</div>
+			<div class="invoice-totals">
+				<p><strong>Subtotal:</strong> { formatCents(inv.Subtotal) }</p>
+				if inv.DiscountBPS > 0 {
+					<p><strong>Discount ({ fmt.Sprintf("%.2f%%", float64(inv.DiscountBPS)/100) }):</strong> -{ formatCents(inv.DiscountAmount) }</p>
+				}
+				<p><strong>Tax Rate:</strong> { fmt.Sprintf("%.2f%%", float64(inv.TaxRate)/100) }</p>
+				<p><strong>Tax Amount:</strong> { formatCents(inv.TaxAmount) }</p>
+				<p><strong>Total:</strong> { formatCents(inv.Total) }</p>
+			</div>
 
 			<div class="form-actions">
 				if inv.Status == "draft" {

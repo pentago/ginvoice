@@ -74,15 +74,13 @@ func TestCompany_SaveAndShowRoundTrip(t *testing.T) {
 	db, h := newCompanyTestEnv(t)
 
 	fields := map[string]string{
-		"name":                  "Acme GmbH",
-		"address":               "Hauptstr. 1, Berlin",
-		"email":                 "billing@acme.example",
-		"phone":                 "+49 30 123456",
-		"tax_id":                "DE123456789",
-		"iban":                  "DE89370400440532013000",
-		"default_currency":      "EUR",
-		"default_tax_rate_pct":  "20",
-		"invoice_number_prefix": "ACME-",
+		"name":                 "Acme GmbH",
+		"address":              "Hauptstr. 1, Berlin",
+		"email":                "billing@acme.example",
+		"phone":                "+49 30 123456",
+		"tax_id":               "DE123456789",
+		"iban":                 "DE89370400440532013000",
+		"default_tax_rate_pct": "20",
 	}
 	rec := postSettings(t, h, fields, "", nil)
 	if rec.Code != http.StatusOK {
@@ -107,12 +105,6 @@ func TestCompany_SaveAndShowRoundTrip(t *testing.T) {
 	}
 	if c.DefaultTaxRateBPS != 2000 {
 		t.Errorf("default_tax_rate = %d bps, want 2000 (20%%)", c.DefaultTaxRateBPS)
-	}
-	if c.DefaultCurrency != "EUR" {
-		t.Errorf("default_currency = %q, want EUR", c.DefaultCurrency)
-	}
-	if c.InvoiceNumberPrefix != "ACME-" {
-		t.Errorf("invoice_number_prefix = %q, want ACME-", c.InvoiceNumberPrefix)
 	}
 
 	getReq := httptest.NewRequest(http.MethodGet, "/settings", nil)
@@ -186,26 +178,19 @@ func TestCompany_LogoReuploadReplacesData(t *testing.T) {
 	}
 }
 
-// S4 defaults: blank currency/prefix fall back to EUR/INV.
+// S4 defaults: blank currency falls back to EUR.
 func TestCompany_BlankFieldsGetDefaults(t *testing.T) {
 	db, h := newCompanyTestEnv(t)
 
 	rec := postSettings(t, h, map[string]string{
-		"name":             "Solo Dev",
-		"default_currency": "",
+		"name": "Solo Dev",
 	}, "", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST /settings status = %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
-	c, ok, err := store.GetCompany(db)
+	_, ok, err := store.GetCompany(db)
 	if err != nil || !ok {
 		t.Fatalf("GetCompany: ok=%v err=%v", ok, err)
-	}
-	if c.DefaultCurrency != "EUR" {
-		t.Errorf("default_currency = %q, want default EUR", c.DefaultCurrency)
-	}
-	if c.InvoiceNumberPrefix != "INV" {
-		t.Errorf("invoice_number_prefix = %q, want default INV", c.InvoiceNumberPrefix)
 	}
 }

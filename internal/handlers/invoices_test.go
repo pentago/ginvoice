@@ -55,13 +55,11 @@ func newInvoicesTestServer(t *testing.T) (*httptest.Server, *sql.DB) {
 func seedCompany(t *testing.T, db *sql.DB) {
 	t.Helper()
 	company := store.Company{
-		Name:                "Test Company",
-		Address:             "123 Test St",
-		Email:               "test@company.com",
-		Phone:               "+1234567890",
-		DefaultCurrency:     "EUR",
-		DefaultTaxRateBPS:   1000, // 10%
-		InvoiceNumberPrefix: "INV",
+		Name:              "Test Company",
+		Address:           "123 Test St",
+		Email:             "test@company.com",
+		Phone:             "+1234567890",
+		DefaultTaxRateBPS: 1000,
 	}
 	if err := store.UpsertCompany(db, company); err != nil {
 		t.Fatalf("seed company: %v", err)
