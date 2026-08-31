@@ -6,7 +6,7 @@ FROM golang:${GO_VER}-alpine AS build
 WORKDIR /src
 
 ENV GOTOOLCHAIN=local \
-    CGO_ENABLED=0
+  CGO_ENABLED=0
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -14,20 +14,16 @@ RUN go mod download
 COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    GOFLAGS=-mod=mod go run github.com/a-h/templ/cmd/templ generate && \
-    go build -trimpath -ldflags="-s -w" -buildvcs=false -o /app ./cmd/app && \
-    rm -rf /tmp/*
+  --mount=type=cache,target=/root/.cache/go-build \
+  GOFLAGS=-mod=mod go run github.com/a-h/templ/cmd/templ generate && \
+  go build -trimpath -ldflags="-s -w" -buildvcs=false -o /app ./cmd/app
 
-FROM scratch
+# FROM scratch
+FROM gcr.io/distroless/static-debian13:nonroot
 LABEL org.opencontainers.image.title="ginvoice" \
-      org.opencontainers.image.description="Self-hosted invoicing app — single Go binary, SQLite, HTMX"
+  org.opencontainers.image.description="Self-hosted invoicing app"
 
-COPY --from=build --chown=65534:65534 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build --chown=65534:65534 /tmp /tmp
-COPY --from=build --chown=65534:65534 /app /app
-
-USER 65534:65534
+COPY --from=build /app /app
 
 EXPOSE 8080
 
