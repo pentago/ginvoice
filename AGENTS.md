@@ -20,9 +20,9 @@ Requires buildx ≥0.17.0 (BuildKit is the default builder; `# syntax=docker/doc
 
 ## Architecture
 
-- `cmd/app/main.go` — entrypoint, route registration, DB open + migrate. All routes wired here. DB path (`/data/ginvoice.db`) and data dir (`/data`) are hardcoded constants — not configurable via env.
+- `cmd/app/main.go` — entrypoint, route registration, DB open + migrate. All routes wired here. DB path defaults to `/data/ginvoice.db`, overridable via the `--database` flag (not via env).
 - `cmd/app/main.go` healthcheck subcommand — when invoked as `/app healthcheck`, reads `GINVOICE_ADDR`, GETs `/healthz`, exits 0/1. Used by Docker HEALTHCHECK.
-- `internal/config/` — env-based config (`GINVOICE_*` env vars, see `config.go`). No `DBPath` or `DataDir` fields — those are hardcoded in `main.go`.
+- `internal/config/` — env-based config (`GINVOICE_*` env vars, see `config.go`). No `DBPath` field — use the `--database` CLI flag instead.
 - `internal/store/` — SQLite via `modernc.org/sqlite` (pure Go, CGO-free). Goose migrations. All money in integer cents.
 - `internal/handlers/` — HTTP handlers, one file per domain (invoices, clients, services, company). Tests in `*_test.go` use httptest + real temp SQLite DB.
 - `internal/views/` — templ templates (`.templ` files). Every page renders full HTML (no shared layout — `@Nav()` is the only shared component).
@@ -43,7 +43,9 @@ Requires buildx ≥0.17.0 (BuildKit is the default builder; `# syntax=docker/doc
 - **Logo storage**: logo is stored as a base64 data URI string in the `logo_data` column of `companies`, not on disk. PDF renderer decodes the data URI to bytes and uses `image.NewFromBytes()`.
 - **Invoice line items**: description and unit price are inherited from the selected service (not user-editable on the invoice form). Only service + quantity are submitted.
 - **Sent invoices are immutable**: handlers return 409 on edit/update attempts.
-- **Email templates**: company-level default subject/body in settings, per-client override in client form. Fallback chain: client template → company default → built-in `email.DefaultSubject`/`DefaultBody`. Variables: `{{companyName}}`, `{{companyNameLink}}`, `{{companyWebsite}}`, `{{companyURL}}`, `{{companyPhone}}`, `{{ownerFirstName}}`, `{{ownerLastName}}`, `{{invoiceNumber}}`, `{{clientName}}`, `{{invoiceTotal}}`, `{{invoiceDueDate}}`.
+- **Email templates**: company-level default subject/body in settings, per-client override in client form. Fallback chain: client template → company default → built-in `email.DefaultSubject`/`DefaultBody`. Variables: `{{companyName}}`, `{{companyNameLink}}`, `{{companyWebsite}}`, `{{companyURL}}`, `{{companyPhone}}`, `{{companyAddressLine1}}`, `{{companyAddressLine2}}`, `{{companyPostalCode}}`, `{{companyCity}}`, `{{companyState}}`, `{{companyCountry}}`, `{{ownerFirstName}}`, `{{ownerLastName}}`, `{{invoiceNumber}}`, `{{clientName}}`, `{{invoiceTotal}}`, `{{invoiceDueDate}}`.
+- **Company address**: structured fields on `companies` (address_line1, address_line2, postal_code, city, state, country); legacy free-text `address` column is migrated to `address_line1` and unused.
+- **Invoice notes**: fallback chain client → company → built-in `store.DefaultInvoiceNotes`; rendered through `email.RenderTemplate`, so the same variables work in notes.
 - **Button colors**: `.btn` = blue (save/submit), `.btn-success` = green (add/create), `.btn-danger` = red (delete), `.btn-warning` = orange (download), `.btn-secondary` = grey (edit/view/cancel/back).
 - **Go 1.27**: `mime.DetectContentType` moved to `net/http` — use `http.DetectContentType`.
 - **Secrets**: API key and email config are in `.env` (gitignored). Compose reads via `${VAR}` substitution. `.env.example` is tracked as a template.

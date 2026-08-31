@@ -37,7 +37,7 @@ func newCompanyTestEnv(t *testing.T) (*sql.DB, *CompanyHandler) {
 	return db, h
 }
 
-// postSettings builds and executes a multipart POST /settings request.
+// postSettings builds and executes a multipart POST /company request.
 func postSettings(t *testing.T, h *CompanyHandler, fields map[string]string, logoName string, logoBytes []byte) *httptest.ResponseRecorder {
 	t.Helper()
 
@@ -61,21 +61,24 @@ func postSettings(t *testing.T, h *CompanyHandler, fields map[string]string, log
 		t.Fatalf("close multipart writer: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/settings", body)
+	req := httptest.NewRequest(http.MethodPost, "/company", body)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	rec := httptest.NewRecorder()
 	h.SaveSettings(rec, req)
 	return rec
 }
 
-// S1 happy path: POST /settings with all fields persists the singleton row;
-// GET /settings renders the saved name and tax_id back.
+// S1 happy path: POST /company with all fields persists the singleton row;
+// GET /company renders the saved name and tax_id back.
 func TestCompany_SaveAndShowRoundTrip(t *testing.T) {
 	db, h := newCompanyTestEnv(t)
 
 	fields := map[string]string{
 		"name":                 "Acme GmbH",
-		"address":              "Hauptstr. 1, Berlin",
+		"address_line1":               "Hauptstr. 1",
+		"postal_code":          "10115",
+		"city":                 "Berlin",
+		"country":              "Germany",
 		"email":                "billing@acme.example",
 		"phone":                "+49 30 123456",
 		"tax_id":               "DE123456789",
@@ -84,7 +87,7 @@ func TestCompany_SaveAndShowRoundTrip(t *testing.T) {
 	}
 	rec := postSettings(t, h, fields, "", nil)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /settings status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("POST /company status = %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte("Acme GmbH")) {
 		t.Errorf("POST response missing saved confirmation name; body: %s", rec.Body.String())
@@ -103,19 +106,22 @@ func TestCompany_SaveAndShowRoundTrip(t *testing.T) {
 	if c.TaxID != "DE123456789" {
 		t.Errorf("tax_id = %q, want DE123456789", c.TaxID)
 	}
+	if c.AddressLine1 != "Hauptstr. 1" || c.PostalCode != "10115" || c.City != "Berlin" || c.Country != "Germany" {
+		t.Errorf("address = %q, %q, %q, %q; want Hauptstr. 1, 10115, Berlin, Germany", c.AddressLine1, c.PostalCode, c.City, c.Country)
+	}
 	if c.DefaultTaxRateBPS != 2000 {
 		t.Errorf("default_tax_rate = %d bps, want 2000 (20%%)", c.DefaultTaxRateBPS)
 	}
 
-	getReq := httptest.NewRequest(http.MethodGet, "/settings", nil)
+	getReq := httptest.NewRequest(http.MethodGet, "/company", nil)
 	getRec := httptest.NewRecorder()
 	h.ShowSettings(getRec, getReq)
 	if getRec.Code != http.StatusOK {
-		t.Fatalf("GET /settings status = %d, want 200", getRec.Code)
+		t.Fatalf("GET /company status = %d, want 200", getRec.Code)
 	}
 	for _, want := range []string{"Acme GmbH", "DE123456789"} {
 		if !bytes.Contains(getRec.Body.Bytes(), []byte(want)) {
-			t.Errorf("GET /settings body missing %q; body: %s", want, getRec.Body.String())
+			t.Errorf("GET /company body missing %q; body: %s", want, getRec.Body.String())
 		}
 	}
 }
@@ -126,7 +132,7 @@ func TestCompany_MissingNameRejected(t *testing.T) {
 
 	rec := postSettings(t, h, map[string]string{"name": ""}, "", nil)
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("POST /settings without name status = %d, want 400; body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("POST /company without name status = %d, want 400; body: %s", rec.Code, rec.Body.String())
 	}
 
 	_, ok, err := store.GetCompany(db)
@@ -148,7 +154,7 @@ func TestCompany_LogoReuploadReplacesData(t *testing.T) {
 
 	first := postSettings(t, h, map[string]string{"name": "Acme GmbH"}, "logo.png", pngBytes)
 	if first.Code != http.StatusOK {
-		t.Fatalf("first POST /settings status = %d, want 200; body: %s", first.Code, first.Body.String())
+		t.Fatalf("first POST /company status = %d, want 200; body: %s", first.Code, first.Body.String())
 	}
 
 	c1, ok, err := store.GetCompany(db)
@@ -166,7 +172,7 @@ func TestCompany_LogoReuploadReplacesData(t *testing.T) {
 
 	second := postSettings(t, h, map[string]string{"name": "Acme GmbH"}, "logo.jpg", jpgBytes)
 	if second.Code != http.StatusOK {
-		t.Fatalf("second POST /settings status = %d, want 200; body: %s", second.Code, second.Body.String())
+		t.Fatalf("second POST /company status = %d, want 200; body: %s", second.Code, second.Body.String())
 	}
 
 	c2, _, err := store.GetCompany(db)
@@ -186,7 +192,7 @@ func TestCompany_BlankFieldsGetDefaults(t *testing.T) {
 		"name": "Solo Dev",
 	}, "", nil)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /settings status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("POST /company status = %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
 	_, ok, err := store.GetCompany(db)

@@ -2,10 +2,12 @@ package main
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,19 +21,19 @@ import (
 	webassets "ginvoice/web"
 )
 
-const (
-	dataDir = "/data"
-	dbPath  = "/data/ginvoice.db"
-)
+const defaultDBPath = "/data/ginvoice.db"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
 		runHealthcheck()
 	}
 
+	dbPath := flag.String("database", defaultDBPath, "path to the SQLite database file")
+	flag.Parse()
+
 	cfg := config.Load()
 
-	db, err := openDB()
+	db, err := openDB(*dbPath)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}
@@ -68,8 +70,8 @@ func main() {
 		http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))),
 	)
 	ch := &handlers.CompanyHandler{DB: db, Cfg: cfg}
-	protected.HandleFunc("GET /settings", ch.ShowSettings)
-	protected.HandleFunc("POST /settings", ch.SaveSettings)
+	protected.HandleFunc("GET /company", ch.ShowSettings)
+	protected.HandleFunc("POST /company", ch.SaveSettings)
 	sender := &email.ResendSender{
 		APIKey:  cfg.ResendAPIKey,
 		BaseURL: cfg.ResendBaseURL,
@@ -136,14 +138,14 @@ func runHealthcheck() {
 	os.Exit(0)
 }
 
-func openDB() (*sql.DB, error) {
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create db dir %s: %w", dataDir, err)
+func openDB(path string) (*sql.DB, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("create db dir for %s: %w", path, err)
 	}
 
-	db, err := store.Open(dbPath)
+	db, err := store.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", dbPath, err)
+		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
 
 	return db, nil

@@ -57,7 +57,7 @@ func SettingsPage(c store.Company) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</main><script>\n\t\t\t(function() {\n\t\t\t\tvar lb = '{' + '{';\n\t\t\t\tvar rb = '}' + '}';\n\n\t\t\t\tfunction renderPreview() {\n\t\t\t\t\tvar body = document.querySelector('textarea[name=\"default_email_body\"]');\n\t\t\t\t\tvar subjInput = document.querySelector('input[name=\"default_email_subject\"]');\n\t\t\t\t\tvar preview = document.getElementById('email-preview');\n\t\t\t\t\tif (!body || !preview) return;\n\t\t\t\t\tvar name = document.querySelector('input[name=\"name\"]');\n\t\t\t\t\tvar ofn = document.querySelector('input[name=\"owner_first_name\"]');\n\t\t\t\t\tvar oln = document.querySelector('input[name=\"owner_last_name\"]');\n\t\t\t\t\tvar website = document.querySelector('input[name=\"website\"]');\n\t\t\t\t\tvar phone = document.querySelector('input[name=\"phone\"]');\n\t\t\t\t\tvar companyName = name ? (name.value || 'Your Company') : 'Your Company';\n\t\t\t\t\tvar site = website ? (website.value || '') : '';\n\t\t\t\t\tvar companyNameLink = site ? '<a href=\"' + site + '\">' + companyName + '</a>' : companyName;\n\t\t\t\t\tvar companyURL = site ? '<a href=\"' + site + '\">' + site + '</a>' : '';\n\n\t\t\t\t\tfunction substitute(tmpl) {\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyNameLink' + rb).join(companyNameLink);\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyName' + rb).join(companyName);\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyWebsite' + rb).join(site);\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyURL' + rb).join(companyURL);\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyPhone' + rb).join(phone ? (phone.value || '+1 555 000 0000') : '+1 555 000 0000');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'ownerFirstName' + rb).join(ofn ? (ofn.value || 'John') : 'John');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'ownerLastName' + rb).join(oln ? (oln.value || 'Doe') : 'Doe');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'invoiceNumber' + rb).join('INV-2026-001');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'clientName' + rb).join('Sample Client');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'invoiceTotal' + rb).join('1,500.00');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'invoiceDueDate' + rb).join('2026-09-21');\n\t\t\t\t\t\treturn tmpl;\n\t\t\t\t\t}\n\n\t\t\t\t\tvar subjectHtml = subjInput ? substitute(subjInput.value || subjInput.placeholder) : '';\n\t\t\t\t\tvar bodyHtml = substitute(body.value || body.placeholder);\n\t\t\t\t\tpreview.srcdoc = '<html><body style=\"font-family: sans-serif; margin: 0; padding: 12px; color: #1f2937; line-height: 1.5;\">' +\n\t\t\t\t\t\t'<p style=\"font-weight: 600; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;\">' + subjectHtml + '</p>' +\n\t\t\t\t\t\tbodyHtml +\n\t\t\t\t\t'</body></html>';\n\t\t\t\t}\n\n\n\t\t\t\tdocument.addEventListener('input', function(e) {\n\t\t\t\t\tif (e.target.closest('form')) {\n\t\t\t\t\t\trenderPreview();\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t\tdocument.addEventListener('htmx:afterSwap', renderPreview);\n\t\t\t\trenderPreview();\n\t\t\t})();\n\t\t\t</script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</main><script>\n\t\t\t(function() {\n\t\t\t\tvar lb = '{' + '{';\n\t\t\t\tvar rb = '}' + '}';\n\n\t\t\t\tfunction renderPreview() {\n\t\t\t\t\tvar body = document.querySelector('textarea[name=\"default_email_body\"]');\n\t\t\t\t\tvar subjInput = document.querySelector('input[name=\"default_email_subject\"]');\n\t\t\t\t\tvar preview = document.getElementById('email-preview');\n\t\t\t\t\tif (!body || !preview) return;\n\t\t\t\t\tvar name = document.querySelector('input[name=\"name\"]');\n\t\t\t\t\tvar ofn = document.querySelector('input[name=\"owner_first_name\"]');\n\t\t\t\t\tvar oln = document.querySelector('input[name=\"owner_last_name\"]');\n\t\t\t\t\tvar website = document.querySelector('input[name=\"website\"]');\n\t\t\t\t\tvar phone = document.querySelector('input[name=\"phone\"]');\n\t\t\t\t\tvar line1 = document.querySelector('input[name=\"address_line1\"]');\n\t\t\t\t\tvar line2 = document.querySelector('input[name=\"address_line2\"]');\n\t\t\t\t\tvar postal = document.querySelector('input[name=\"postal_code\"]');\n\t\t\t\t\tvar city = document.querySelector('input[name=\"city\"]');\n\t\t\t\t\tvar state = document.querySelector('input[name=\"state\"]');\n\t\t\t\t\tvar country = document.querySelector('input[name=\"country\"]');\n\t\t\t\t\tvar companyName = name ? (name.value || 'Your Company') : 'Your Company';\n\t\t\t\t\tvar site = website ? (website.value || '') : '';\n\t\t\t\t\tvar companyNameLink = site ? '<a href=\"' + site + '\">' + companyName + '</a>' : companyName;\n\t\t\t\t\tvar companyURL = site ? '<a href=\"' + site + '\">' + site + '</a>' : '';\n\n\t\t\t\t\tfunction substitute(tmpl) {\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyNameLink' + rb).join(companyNameLink);\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyName' + rb).join(companyName);\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyWebsite' + rb).join(site);\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyURL' + rb).join(companyURL);\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyPhone' + rb).join(phone ? (phone.value || '+1 555 000 0000') : '+1 555 000 0000');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyAddressLine1' + rb).join(line1 ? (line1.value || '123 Main St') : '123 Main St');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyAddressLine2' + rb).join(line2 ? line2.value : '');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyPostalCode' + rb).join(postal ? (postal.value || '10001') : '10001');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyCity' + rb).join(city ? (city.value || 'Springfield') : 'Springfield');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyState' + rb).join(state ? state.value : '');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'companyCountry' + rb).join(country ? (country.value || 'USA') : 'USA');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'ownerFirstName' + rb).join(ofn ? (ofn.value || 'John') : 'John');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'ownerLastName' + rb).join(oln ? (oln.value || 'Doe') : 'Doe');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'invoiceNumber' + rb).join('INV-2026-001');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'clientName' + rb).join('Sample Client');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'invoiceTotal' + rb).join('1,500.00');\n\t\t\t\t\t\ttmpl = tmpl.split(lb + 'invoiceDueDate' + rb).join('2026-09-21');\n\t\t\t\t\t\treturn tmpl;\n\t\t\t\t\t}\n\n\t\t\t\t\tvar subjectHtml = subjInput ? substitute(subjInput.value || subjInput.placeholder) : '';\n\t\t\t\t\tvar bodyHtml = substitute(body.value || body.placeholder);\n\t\t\t\t\tpreview.srcdoc = '<html><body style=\"font-family: sans-serif; margin: 0; padding: 12px; color: #1f2937; line-height: 1.5;\">' +\n\t\t\t\t\t\t'<p style=\"font-weight: 600; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;\">' + subjectHtml + '</p>' +\n\t\t\t\t\t\tbodyHtml +\n\t\t\t\t\t'</body></html>';\n\t\t\t\t}\n\n\n\t\t\t\tdocument.addEventListener('input', function(e) {\n\t\t\t\t\tif (e.target.closest('form')) {\n\t\t\t\t\t\trenderPreview();\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t\tdocument.addEventListener('htmx:afterSwap', renderPreview);\n\t\t\t\trenderPreview();\n\t\t\t})();\n\t\t\t</script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -86,14 +86,14 @@ func SettingsForm(c store.Company) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<form hx-post=\"/settings\" hx-swap=\"outerHTML\" enctype=\"multipart/form-data\" class=\"card\"><label>Company Name *<br><input type=\"text\" name=\"name\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<form hx-post=\"/company\" hx-swap=\"outerHTML\" enctype=\"multipart/form-data\" class=\"card\"><label>Company Name *<br><input type=\"text\" name=\"name\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 88, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 100, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -106,7 +106,7 @@ func SettingsForm(c store.Company) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.OwnerFirstName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 93, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 105, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -119,7 +119,7 @@ func SettingsForm(c store.Company) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.OwnerLastName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 98, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 110, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -132,218 +132,296 @@ func SettingsForm(c store.Company) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Website)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 103, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 115, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" placeholder=\"https://example.com\"></label> <label>Address<br><textarea name=\"address\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" placeholder=\"https://example.com\"></label> <label>Address Line 1<br><input type=\"text\" name=\"address_line1\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(c.Address)
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.AddressLine1)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 106, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 118, Col: 64}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</textarea></label> <label>Email<br><input type=\"email\" name=\"email\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"></label> <label>Address Line 2<br><input type=\"text\" name=\"address_line2\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Email)
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.AddressLine2)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 109, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 121, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"></label> <label>Phone<br><input type=\"text\" name=\"phone\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"></label><div class=\"form-row\"><div class=\"form-group\"><label>Postal Code<br><input type=\"text\" name=\"postal_code\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Phone)
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.PostalCode)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 112, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 126, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"></label> <label>VAT/Tax ID<br><input type=\"text\" name=\"tax_id\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\"></label></div><div class=\"form-group\"><label>City<br><input type=\"text\" name=\"city\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.TaxID)
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.City)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 115, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 131, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"></label> <label>IBAN<br><input type=\"text\" name=\"iban\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"></label></div></div><div class=\"form-row\"><div class=\"form-group\"><label>State<br><input type=\"text\" name=\"state\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.IBAN)
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.State)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 118, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 138, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\"></label> <label>Default Tax Rate (%)<br><input type=\"number\" step=\"0.01\" name=\"default_tax_rate_pct\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\"></label></div><div class=\"form-group\"><label>Country<br><input type=\"text\" name=\"country\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.2f", float64(c.DefaultTaxRateBPS)/100))
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Country)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 122, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 143, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"></label> <label>Logo<br><input type=\"file\" name=\"logo\" accept=\"image/*\"> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"></label></div></div><label>Email<br><input type=\"email\" name=\"email\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if c.LogoData != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<br><img src=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var13 string
-			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.LogoData)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 128, Col: 25}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" alt=\"logo\" style=\"max-height: 80px; max-width: 200px; margin-top: 0.5rem; border: 1px solid #dbe3ee; border-radius: 8px; padding: 4px;\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
+		var templ_7745c5c3_Var13 string
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Email)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 148, Col: 51}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</label> <label>Invoice Notes<br><textarea name=\"invoice_notes\" rows=\"4\" placeholder=\"Payment terms, bank details, or any text to appear at the bottom of every invoice\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"></label> <label>Phone<br><input type=\"text\" name=\"phone\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var14 string
-		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(c.InvoiceNotes)
+		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.Phone)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 132, Col: 155}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 151, Col: 50}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</textarea></label><h3>Default Email Template</h3><small>Used when a client has no custom template. Variables: ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\"></label> <label>VAT/Tax ID<br><input type=\"text\" name=\"tax_id\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var15 string
-		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs("{{companyName}}, {{companyNameLink}}, {{companyWebsite}}, {{companyURL}}, {{companyPhone}}, {{ownerFirstName}}, {{ownerLastName}}, {{invoiceNumber}}, {{clientName}}, {{invoiceTotal}}, {{invoiceDueDate}}")
+		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.TaxID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 135, Col: 269}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 154, Col: 51}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</small> <label>Default Email Subject<br><input type=\"text\" name=\"default_email_subject\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\"></label> <label>IBAN<br><input type=\"text\" name=\"iban\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var16 string
-		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.DefaultEmailSubject)
+		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.IBAN)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 137, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 157, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\"></label> <label>Default Tax Rate (%)<br><input type=\"number\" step=\"0.01\" name=\"default_tax_rate_pct\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var17 string
-		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(email.DefaultSubject)
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%.2f", float64(c.DefaultTaxRateBPS)/100))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 137, Col: 117}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 161, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\"></label> <label>Default Email Body (HTML)<br><textarea name=\"default_email_body\" rows=\"16\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\"></label> <label>Logo<br><input type=\"file\" name=\"logo\" accept=\"image/*\"> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var18 string
-		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(email.DefaultBody)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 140, Col: 80}
+		if c.LogoData != "" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<br><img src=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var18 string
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.LogoData)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 167, Col: 25}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" alt=\"logo\" style=\"max-height: 80px; max-width: 200px; margin-top: 0.5rem; border: 1px solid #dbe3ee; border-radius: 8px; padding: 4px;\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</label> <label>Invoice Notes<br><textarea name=\"invoice_notes\" rows=\"6\" placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var19 string
-		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(c.DefaultEmailBody)
+		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(store.DefaultInvoiceNotes)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 140, Col: 103}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 171, Col: 81}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</textarea></label><div class=\"email-preview-wrap\"><small>Preview (sample data):</small> <iframe id=\"email-preview\" style=\"width: 100%; height: 400px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;\"></iframe></div><h3>PDF Template Config</h3><small>JSON config for the invoice PDF. Leave blank for defaults. Keys: accent_color, text_color, muted_color, divider_color, table_header_bg, table_header_color, heading_size, body_size, label_size, margin_mm, show_notes.</small> <label>PDF Config (JSON)<br><textarea name=\"pdf_config\" rows=\"16\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var20 string
-		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue("{\n  \"accent_color\": \"#1F1F1F\",\n  \"heading_size\": 48\n}")
+		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(c.InvoiceNotes)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 149, Col: 119}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 171, Col: 100}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</textarea> <small>Supports the same variables as email templates. Leave blank to use the built-in default.</small></label><h3>Default Email Template</h3><small>Used when a client has no custom template. Variables: ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var21 string
-		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(c.PdfConfig)
+		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs("{{companyName}}, {{companyNameLink}}, {{companyWebsite}}, {{companyURL}}, {{companyPhone}}, {{companyAddressLine1}}, {{companyAddressLine2}}, {{companyPostalCode}}, {{companyCity}}, {{companyState}}, {{companyCountry}}, {{ownerFirstName}}, {{ownerLastName}}, {{invoiceNumber}}, {{clientName}}, {{invoiceTotal}}, {{invoiceDueDate}}")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 149, Col: 135}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 175, Col: 397}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</textarea></label> <button type=\"submit\">Save</button></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</small> <label>Default Email Subject<br><input type=\"text\" name=\"default_email_subject\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var22 string
+		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(c.DefaultEmailSubject)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 177, Col: 80}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" placeholder=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var23 string
+		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue(email.DefaultSubject)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 177, Col: 117}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\"></label> <label>Default Email Body (HTML)<br><textarea name=\"default_email_body\" rows=\"16\" placeholder=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var24 string
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.ResolveAttributeValue(email.DefaultBody)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 180, Col: 80}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var25 string
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(c.DefaultEmailBody)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 180, Col: 103}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</textarea></label><div class=\"email-preview-wrap\"><small>Preview (sample data):</small> <iframe id=\"email-preview\" style=\"width: 100%; height: 400px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;\"></iframe></div><h3>PDF Template Config</h3><small>JSON config for the invoice PDF. Leave blank for defaults. Keys: accent_color, text_color, muted_color, divider_color, table_header_bg, table_header_color, heading_size, body_size, label_size, margin_mm, show_notes.</small> <label>PDF Config (JSON)<br><textarea name=\"pdf_config\" rows=\"16\" placeholder=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var26 string
+		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue("{\n  \"accent_color\": \"#1F1F1F\",\n  \"heading_size\": 48\n}")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 189, Col: 119}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var27 string
+		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(c.PdfConfig)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 189, Col: 135}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</textarea></label> <button type=\"submit\">Save</button></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -367,25 +445,25 @@ func SettingsSaved(c store.Company) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var22 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var22 == nil {
-			templ_7745c5c3_Var22 = templ.NopComponent
+		templ_7745c5c3_Var28 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var28 == nil {
+			templ_7745c5c3_Var28 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div id=\"settings-saved\"><p>✓ Settings saved for <strong>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div id=\"settings-saved\"><p>✓ Settings saved for <strong>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var23 string
-		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
+		var templ_7745c5c3_Var29 string
+		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(c.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 157, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/views/company.templ`, Line: 197, Col: 44}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</strong></p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</strong></p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -393,7 +471,7 @@ func SettingsSaved(c store.Company) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

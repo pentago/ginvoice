@@ -101,7 +101,7 @@ templ ClientForm(c store.Client, action string) {
 	<textarea id="invoice_notes" name="invoice_notes" rows="4" placeholder="Leave blank to use company default">{ c.InvoiceNotes }</textarea>
 
 	<h3>Email Template (optional override)</h3>
-		<small>Leave blank to use the company default. Variables: { "{{companyName}}, {{ownerFirstName}}, {{ownerLastName}}, {{invoiceNumber}}, {{clientName}}, {{invoiceTotal}}, {{invoiceDueDate}}" }</small>
+		<small>Leave blank to use the company default. Variables: { "{{companyName}}, {{companyNameLink}}, {{companyWebsite}}, {{companyURL}}, {{companyPhone}}, {{companyAddressLine1}}, {{companyAddressLine2}}, {{companyPostalCode}}, {{companyCity}}, {{companyState}}, {{companyCountry}}, {{ownerFirstName}}, {{ownerLastName}}, {{invoiceNumber}}, {{clientName}}, {{invoiceTotal}}, {{invoiceDueDate}}" }</small>
 		<label for="email_subject">Email Subject</label>
 		<input type="text" id="email_subject" name="email_subject" value={ c.EmailSubject } placeholder={ email.DefaultSubject }/>
 
@@ -148,6 +148,12 @@ templ NewClientPage() {
 							tmpl = tmpl.split(lb + 'companyWebsite' + rb).join('https://example.com');
 							tmpl = tmpl.split(lb + 'companyURL' + rb).join('<a href="#">https://example.com</a>');
 							tmpl = tmpl.split(lb + 'companyPhone' + rb).join('+1 555 000 0000');
+						tmpl = tmpl.split(lb + 'companyAddressLine1' + rb).join('123 Main St');
+						tmpl = tmpl.split(lb + 'companyAddressLine2' + rb).join('');
+						tmpl = tmpl.split(lb + 'companyPostalCode' + rb).join('10001');
+						tmpl = tmpl.split(lb + 'companyCity' + rb).join('Springfield');
+						tmpl = tmpl.split(lb + 'companyState' + rb).join('');
+						tmpl = tmpl.split(lb + 'companyCountry' + rb).join('USA');
 							tmpl = tmpl.split(lb + 'ownerFirstName' + rb).join('John');
 							tmpl = tmpl.split(lb + 'ownerLastName' + rb).join('Doe');
 							tmpl = tmpl.split(lb + 'invoiceNumber' + rb).join('INV-2026-001');
@@ -204,6 +210,12 @@ templ EditClientPage(c store.Client) {
 							tmpl = tmpl.split(lb + 'companyWebsite' + rb).join('https://example.com');
 							tmpl = tmpl.split(lb + 'companyURL' + rb).join('<a href="#">https://example.com</a>');
 							tmpl = tmpl.split(lb + 'companyPhone' + rb).join('+1 555 000 0000');
+						tmpl = tmpl.split(lb + 'companyAddressLine1' + rb).join('123 Main St');
+						tmpl = tmpl.split(lb + 'companyAddressLine2' + rb).join('');
+						tmpl = tmpl.split(lb + 'companyPostalCode' + rb).join('10001');
+						tmpl = tmpl.split(lb + 'companyCity' + rb).join('Springfield');
+						tmpl = tmpl.split(lb + 'companyState' + rb).join('');
+						tmpl = tmpl.split(lb + 'companyCountry' + rb).join('USA');
 							tmpl = tmpl.split(lb + 'ownerFirstName' + rb).join('John');
 							tmpl = tmpl.split(lb + 'ownerLastName' + rb).join('Doe');
 							tmpl = tmpl.split(lb + 'invoiceNumber' + rb).join('INV-2026-001');

@@ -30,7 +30,7 @@ mkdir -p ./data && chown 1000:1000 ./data
 | `GINVOICE_FROM_NAME` | `` | For email | Sender display name |
 | `GINVOICE_ENV` | `production` | No | Environment hint |
 
-The database path (`/data/ginvoice.db`) and data directory (`/data`) are hardcoded and cannot be changed.
+The database path defaults to `/data/ginvoice.db` and can be changed with the `--database` flag (e.g. `--database /tmp/test.db` to run against a scratch database). The PDF archive directory (`/data/invoices`) is hardcoded.
 
 ## Email setup
 

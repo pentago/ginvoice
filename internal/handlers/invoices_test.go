@@ -56,7 +56,9 @@ func seedCompany(t *testing.T, db *sql.DB) {
 	t.Helper()
 	company := store.Company{
 		Name:              "Test Company",
-		Address:           "123 Test St",
+		AddressLine1:            "123 Test St",
+		City:              "Testville",
+		Country:           "Testland",
 		Email:             "test@company.com",
 		Phone:             "+1234567890",
 		DefaultTaxRateBPS: 1000,

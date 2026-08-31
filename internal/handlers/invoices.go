@@ -519,17 +519,7 @@ func (h *InvoicesHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tmplData := email.TemplateData{
-		CompanyName:    company.Name,
-		CompanyWebsite: company.Website,
-		CompanyPhone:   company.Phone,
-		OwnerFirstName: company.OwnerFirstName,
-		OwnerLastName:  company.OwnerLastName,
-		InvoiceNumber:  inv.Number,
-		ClientName:     inv.Client.Name,
-		InvoiceTotal:   fmt.Sprintf("%.2f", float64(inv.Total)/100),
-		InvoiceDueDate: inv.DueDate,
-	}
+	tmplData := email.TemplateDataFor(inv, company)
 	subject := email.RenderTemplate(subjectTmpl, tmplData)
 	htmlBody := email.RenderTemplate(bodyTmpl, tmplData)
 	if err := h.Sender.Send(r.Context(), inv.Client.Email, subject, htmlBody, inv.Number+".pdf", raw); err != nil {

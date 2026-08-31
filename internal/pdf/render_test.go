@@ -29,7 +29,9 @@ func testInvoice() store.Invoice {
 func testCompany() store.Company {
 	return store.Company{
 		Name:    "My Company",
-		Address: "456 Business Ave",
+		AddressLine1:  "456 Business Ave",
+		City:    "Berlin",
+		Country: "Germany",
 		Email:   "hello@mycompany.example",
 		TaxID:   "DE123456789",
 	}

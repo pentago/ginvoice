@@ -35,6 +35,12 @@ templ SettingsPage(c store.Company) {
 					var oln = document.querySelector('input[name="owner_last_name"]');
 					var website = document.querySelector('input[name="website"]');
 					var phone = document.querySelector('input[name="phone"]');
+					var line1 = document.querySelector('input[name="address_line1"]');
+					var line2 = document.querySelector('input[name="address_line2"]');
+					var postal = document.querySelector('input[name="postal_code"]');
+					var city = document.querySelector('input[name="city"]');
+					var state = document.querySelector('input[name="state"]');
+					var country = document.querySelector('input[name="country"]');
 					var companyName = name ? (name.value || 'Your Company') : 'Your Company';
 					var site = website ? (website.value || '') : '';
 					var companyNameLink = site ? '<a href="' + site + '">' + companyName + '</a>' : companyName;
@@ -46,6 +52,12 @@ templ SettingsPage(c store.Company) {
 						tmpl = tmpl.split(lb + 'companyWebsite' + rb).join(site);
 						tmpl = tmpl.split(lb + 'companyURL' + rb).join(companyURL);
 						tmpl = tmpl.split(lb + 'companyPhone' + rb).join(phone ? (phone.value || '+1 555 000 0000') : '+1 555 000 0000');
+						tmpl = tmpl.split(lb + 'companyAddressLine1' + rb).join(line1 ? (line1.value || '123 Main St') : '123 Main St');
+						tmpl = tmpl.split(lb + 'companyAddressLine2' + rb).join(line2 ? line2.value : '');
+						tmpl = tmpl.split(lb + 'companyPostalCode' + rb).join(postal ? (postal.value || '10001') : '10001');
+						tmpl = tmpl.split(lb + 'companyCity' + rb).join(city ? (city.value || 'Springfield') : 'Springfield');
+						tmpl = tmpl.split(lb + 'companyState' + rb).join(state ? state.value : '');
+						tmpl = tmpl.split(lb + 'companyCountry' + rb).join(country ? (country.value || 'USA') : 'USA');
 						tmpl = tmpl.split(lb + 'ownerFirstName' + rb).join(ofn ? (ofn.value || 'John') : 'John');
 						tmpl = tmpl.split(lb + 'ownerLastName' + rb).join(oln ? (oln.value || 'Doe') : 'Doe');
 						tmpl = tmpl.split(lb + 'invoiceNumber' + rb).join('INV-2026-001');
@@ -79,7 +91,7 @@ templ SettingsPage(c store.Company) {
 
 templ SettingsForm(c store.Company) {
 	<form
-		hx-post="/settings"
+		hx-post="/company"
 		hx-swap="outerHTML"
 		enctype="multipart/form-data"
 		class="card"
@@ -102,9 +114,36 @@ templ SettingsForm(c store.Company) {
 		<label>Website<br/>
 			<input type="url" name="website" value={ c.Website } placeholder="https://example.com"/>
 		</label>
-		<label>Address<br/>
-			<textarea name="address">{ c.Address }</textarea>
-		</label>
+	<label>Address Line 1<br/>
+		<input type="text" name="address_line1" value={ c.AddressLine1 }/>
+	</label>
+	<label>Address Line 2<br/>
+		<input type="text" name="address_line2" value={ c.AddressLine2 }/>
+	</label>
+	<div class="form-row">
+		<div class="form-group">
+			<label>Postal Code<br/>
+				<input type="text" name="postal_code" value={ c.PostalCode }/>
+			</label>
+		</div>
+		<div class="form-group">
+			<label>City<br/>
+				<input type="text" name="city" value={ c.City }/>
+			</label>
+		</div>
+	</div>
+	<div class="form-row">
+		<div class="form-group">
+			<label>State<br/>
+				<input type="text" name="state" value={ c.State }/>
+			</label>
+		</div>
+		<div class="form-group">
+			<label>Country<br/>
+				<input type="text" name="country" value={ c.Country }/>
+			</label>
+		</div>
+	</div>
 		<label>Email<br/>
 			<input type="email" name="email" value={ c.Email }/>
 		</label>
@@ -128,11 +167,12 @@ templ SettingsForm(c store.Company) {
 				<img src={ c.LogoData } alt="logo" style="max-height: 80px; max-width: 200px; margin-top: 0.5rem; border: 1px solid #dbe3ee; border-radius: 8px; padding: 4px;"/>
 			}
 		</label>
-		<label>Invoice Notes<br/>
-			<textarea name="invoice_notes" rows="4" placeholder="Payment terms, bank details, or any text to appear at the bottom of every invoice">{ c.InvoiceNotes }</textarea>
-		</label>
+	<label>Invoice Notes<br/>
+		<textarea name="invoice_notes" rows="6" placeholder={ store.DefaultInvoiceNotes }>{ c.InvoiceNotes }</textarea>
+		<small>Supports the same variables as email templates. Leave blank to use the built-in default.</small>
+	</label>
 		<h3>Default Email Template</h3>
-		<small>Used when a client has no custom template. Variables: { "{{companyName}}, {{companyNameLink}}, {{companyWebsite}}, {{companyURL}}, {{companyPhone}}, {{ownerFirstName}}, {{ownerLastName}}, {{invoiceNumber}}, {{clientName}}, {{invoiceTotal}}, {{invoiceDueDate}}" }</small>
+		<small>Used when a client has no custom template. Variables: { "{{companyName}}, {{companyNameLink}}, {{companyWebsite}}, {{companyURL}}, {{companyPhone}}, {{companyAddressLine1}}, {{companyAddressLine2}}, {{companyPostalCode}}, {{companyCity}}, {{companyState}}, {{companyCountry}}, {{ownerFirstName}}, {{ownerLastName}}, {{invoiceNumber}}, {{clientName}}, {{invoiceTotal}}, {{invoiceDueDate}}" }</small>
 		<label>Default Email Subject<br/>
 			<input type="text" name="default_email_subject" value={ c.DefaultEmailSubject } placeholder={ email.DefaultSubject }/>
 		</label>

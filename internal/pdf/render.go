@@ -11,6 +11,7 @@ import (
 	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/goregular"
 
+	"ginvoice/internal/email"
 	"ginvoice/internal/store"
 )
 
@@ -95,7 +96,13 @@ func RenderInvoiceWithConfig(inv store.Invoice, company store.Company, cfg Templ
 	}
 	clientLines := filterEmpty([]string{clientName, inv.Client.Address, inv.Client.Email})
 
-	companyLines := filterEmpty([]string{company.Name, company.Address})
+	companyLines := filterEmpty([]string{
+		company.Name,
+		company.AddressLine1,
+		company.AddressLine2,
+		strings.TrimSpace(company.PostalCode + " " + company.City),
+		joinComma(company.State, company.Country),
+	})
 	bankingLines := filterEmpty([]string{
 		strIf(company.IBAN != "", "IBAN: "+company.IBAN),
 		strIf(company.TaxID != "", "Tax ID: "+company.TaxID),
@@ -154,10 +161,12 @@ func RenderInvoiceWithConfig(inv store.Invoice, company store.Company, cfg Templ
 
 	page.AutoRow(func(r *template.RowBuilder) {
 		r.Col(12, func(c *template.ColBuilder) {
-			c.Table(header, rows,
+			c.Table(header, nil,
 				template.ColumnWidths(45, 15, 15, 10, 15),
 				template.TableHeaderStyle(theaderOpts...),
 			)
+			c.Line(template.LineColor(divider), template.LineThickness(document.Pt(0.5)))
+			c.Table(nil, rows, template.ColumnWidths(45, 15, 15, 10, 15))
 		})
 	})
 
@@ -224,6 +233,10 @@ func RenderInvoiceWithConfig(inv store.Invoice, company store.Company, cfg Templ
 	if invoiceNotes == "" {
 		invoiceNotes = company.InvoiceNotes
 	}
+	if invoiceNotes == "" {
+		invoiceNotes = store.DefaultInvoiceNotes
+	}
+	invoiceNotes = email.RenderTemplate(invoiceNotes, email.TemplateDataFor(inv, company))
 	if invoiceNotes != "" {
 		page.AutoRow(func(r *template.RowBuilder) {
 			r.Col(12, func(c *template.ColBuilder) {
@@ -252,6 +265,16 @@ func strIf(cond bool, s string) string {
 		return s
 	}
 	return ""
+}
+
+func joinComma(a, b string) string {
+	if a == "" {
+		return b
+	}
+	if b == "" {
+		return a
+	}
+	return a + ", " + b
 }
 
 func filterEmpty(lines []string) []string {

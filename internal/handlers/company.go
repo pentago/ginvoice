@@ -22,7 +22,7 @@ type CompanyHandler struct {
 	Cfg *config.Config
 }
 
-// ShowSettings renders GET /settings — the company edit form.
+// ShowSettings renders GET /company — the company edit form.
 func (h *CompanyHandler) ShowSettings(w http.ResponseWriter, r *http.Request) {
 	c, _, err := store.GetCompany(h.DB)
 	if err != nil {
@@ -32,7 +32,7 @@ func (h *CompanyHandler) ShowSettings(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(views.SettingsPage(c)).ServeHTTP(w, r)
 }
 
-// SaveSettings handles POST /settings — validates, stores the logo if uploaded,
+// SaveSettings handles POST /company — validates, stores the logo if uploaded,
 // and upserts the singleton row, returning the HTMX confirmation fragment.
 func (h *CompanyHandler) SaveSettings(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB max
@@ -55,7 +55,12 @@ func (h *CompanyHandler) SaveSettings(w http.ResponseWriter, r *http.Request) {
 		OwnerFirstName:      strings.TrimSpace(r.FormValue("owner_first_name")),
 		OwnerLastName:       strings.TrimSpace(r.FormValue("owner_last_name")),
 		Website:             strings.TrimSpace(r.FormValue("website")),
-		Address:             r.FormValue("address"),
+		AddressLine1:        r.FormValue("address_line1"),
+		AddressLine2:        r.FormValue("address_line2"),
+		PostalCode:          r.FormValue("postal_code"),
+		City:                r.FormValue("city"),
+		State:               r.FormValue("state"),
+		Country:             r.FormValue("country"),
 		Email:               r.FormValue("email"),
 		Phone:               r.FormValue("phone"),
 		TaxID:               r.FormValue("tax_id"),
