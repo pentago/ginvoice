@@ -124,3 +124,21 @@ func TestRenderInvoice_Logo(t *testing.T) {
 		t.Error("no /Image XObject in PDF — logo was dropped")
 	}
 }
+
+// TestRenderInvoice_WithFontConfig verifies S3: a config with font families
+// renders a non-empty PDF without error.
+func TestRenderInvoice_WithFontConfig(t *testing.T) {
+	cfg := pdf.DefaultConfig()
+	cfg.FontFamily = "DejaVu Sans"
+	cfg.FontTitle = "DejaVu Sans"
+	b, err := pdf.RenderInvoiceWithConfig(testInvoice(), testCompany(), cfg)
+	if err != nil {
+		t.Fatalf("RenderInvoiceWithConfig with font config: %v", err)
+	}
+	if len(b) == 0 {
+		t.Fatal("got empty bytes")
+	}
+	if !bytes.HasPrefix(b, []byte("%PDF-")) {
+		t.Error("does not start with %PDF-")
+	}
+}

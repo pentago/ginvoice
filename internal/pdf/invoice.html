@@ -9,23 +9,26 @@
     margin: {{.MarginMM}}mm;
     @bottom-center {
       content: counter(page) " / " counter(pages);
-      font-family: "DejaVu Sans";
+      font-family: "{{.FontFamily}}", "DejaVu Sans", sans-serif;
       font-size: 8pt;
       color: {{.MutedColor}};
     }
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: "DejaVu Sans"; font-size: {{.BodySize}}pt; color: {{.TextColor}}; line-height: 1.45; }
+  body { font-family: "{{.FontFamily}}", "DejaVu Sans", sans-serif; font-size: {{.BodySize}}pt; color: {{.TextColor}}; line-height: 1.45; }
 
   .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12mm; }
   h1 { font-size: {{.HeadingSize}}pt; font-weight: bold; color: {{.AccentColor}}; letter-spacing: 2px; }
+  .sec-title { font-family: "{{.FontTitle}}", "DejaVu Sans", sans-serif; }
   .logo img { height: 20mm; }
 
   .meta { display: flex; justify-content: space-between; margin-bottom: 10mm; }
+  .sec-details { font-family: "{{.FontDetails}}", "DejaVu Sans", sans-serif; }
   .meta .col { width: 32%; }
   .label { font-size: {{.LabelSize}}pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: {{.MutedColor}}; margin-bottom: 2mm; }
 
   table.items { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
+  .sec-body { font-family: "{{.FontBody}}", "DejaVu Sans", sans-serif; }
   table.items th {
     font-size: {{.LabelSize}}pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;
     color: {{.TableHeaderColor}}; text-align: left; padding: 2.5mm 2mm;
@@ -47,17 +50,18 @@
   }
 
   .notes { border-top: 1px solid {{.DividerColor}}; padding-top: 5mm; color: {{.MutedColor}}; font-size: {{.LabelSize}}pt; margin-bottom: 6mm; }
+  .sec-notes { font-family: "{{.FontNotes}}", "DejaVu Sans", sans-serif; }
   .notes .label { margin-bottom: 1.5mm; }
   .notes p { margin-bottom: 1mm; }
 </style>
 </head>
 <body>
   <div class="top">
-    <h1>INVOICE</h1>
+    <h1 class="sec-title">INVOICE</h1>
     {{if .LogoData}}<div class="logo"><img src="{{.LogoData}}" alt="logo"></div>{{end}}
   </div>
 
-  <div class="meta">
+  <div class="meta sec-details">
     <div class="col">
       <div class="label">Issued to</div>
       <p>{{.ClientLines}}</p>
@@ -74,7 +78,7 @@
     </div>
   </div>
 
-  <table class="items">
+  <table class="items sec-body">
     <thead>
       <tr>
         <th style="width: 46%">Service</th>
@@ -97,7 +101,7 @@
     </tbody>
   </table>
 
-  <div class="totals">
+  <div class="totals sec-body">
     <table>
       <tr><td class="k">Subtotal</td><td class="v">{{.SubtotalStr}}</td></tr>
       {{if .DiscountStr}}<tr><td class="k">{{.DiscountLabel}}</td><td class="v">{{.DiscountStr}}</td></tr>{{end}}
@@ -107,13 +111,13 @@
   </div>
 
   {{if .InvoiceNotesHTML}}
-  <div class="notes">
+  <div class="notes sec-notes">
     <div class="label">Notes</div>
     <p>{{.InvoiceNotesHTML}}</p>
   </div>
   {{end}}
   {{if .NotesHTML}}
-  <div class="notes">
+  <div class="notes sec-notes">
     <div class="label">Note</div>
     <p>{{.NotesHTML}}</p>
   </div>

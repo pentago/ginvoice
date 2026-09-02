@@ -51,6 +51,12 @@ type invoiceView struct {
 	TableHeaderBg    string
 	TableHeaderColor string
 
+	FontFamily  string
+	FontTitle   string
+	FontDetails string
+	FontBody    string
+	FontNotes   string
+
 	Number    string
 	IssueDate string
 	DueDate   string
@@ -154,6 +160,12 @@ func buildInvoiceView(inv store.Invoice, company store.Company, cfg TemplateConf
 		TableHeaderBg:    cfg.TableHeaderBg,
 		TableHeaderColor: cfg.TableHeaderColor,
 
+		FontFamily:  resolveFont(cfg.FontFamily, ""),
+		FontTitle:   resolveFont(cfg.FontTitle, cfg.FontFamily),
+		FontDetails: resolveFont(cfg.FontDetails, cfg.FontFamily),
+		FontBody:    resolveFont(cfg.FontBody, cfg.FontFamily),
+		FontNotes:   resolveFont(cfg.FontNotes, cfg.FontFamily),
+
 		Number:    html.EscapeString(inv.Number),
 		IssueDate: html.EscapeString(inv.IssueDate),
 		DueDate:   html.EscapeString(inv.DueDate),
@@ -237,4 +249,16 @@ func joinComma(a, b string) string {
 		return a
 	}
 	return a + ", " + b
+}
+
+// resolveFont returns the section-specific font, else the family default,
+// else the built-in DejaVu Sans. Never empty.
+func resolveFont(section, family string) string {
+	if section != "" {
+		return section
+	}
+	if family != "" {
+		return family
+	}
+	return "DejaVu Sans"
 }

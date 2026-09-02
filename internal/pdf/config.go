@@ -23,6 +23,11 @@ type TemplateConfig struct {
 	LabelSize        float64 `json:"label_size"`
 	MarginMM         float64 `json:"margin_mm"`
 	ShowNotes        bool    `json:"show_notes"`
+	FontFamily       string  `json:"font_family"`
+	FontTitle        string  `json:"font_title"`
+	FontDetails      string  `json:"font_details"`
+	FontBody         string  `json:"font_body"`
+	FontNotes        string  `json:"font_notes"`
 }
 
 // DefaultConfig returns the Canva minimal template defaults: monochrome
@@ -67,6 +72,8 @@ func (c TemplateConfig) JSON() (string, error) {
 
 var colorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
+var fontNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 -]*$`)
+
 // ValidateConfig reports invalid JSON, unknown keys, or malformed colors in a
 // PDF config string; empty is valid (defaults apply). Used to reject bad
 // settings at save time — LoadConfig silently falls back to defaults when
@@ -92,6 +99,18 @@ func ValidateConfig(jsonStr string) error {
 	for _, c := range colors {
 		if c.val != "" && !colorRe.MatchString(c.val) {
 			return fmt.Errorf("%s: %q is not a valid #RRGGBB color", c.name, c.val)
+		}
+	}
+	fonts := []struct{ name, val string }{
+		{"font_family", cfg.FontFamily},
+		{"font_title", cfg.FontTitle},
+		{"font_details", cfg.FontDetails},
+		{"font_body", cfg.FontBody},
+		{"font_notes", cfg.FontNotes},
+	}
+	for _, f := range fonts {
+		if f.val != "" && !fontNameRe.MatchString(f.val) {
+			return fmt.Errorf("%s: %q is not a valid font name", f.name, f.val)
 		}
 	}
 	return nil

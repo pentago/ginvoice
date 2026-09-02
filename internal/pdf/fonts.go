@@ -30,21 +30,65 @@ func dataDir() string {
 }
 
 var (
-	fontConfOnce sync.Once
-	fontConf     text.FontConfiguration
-	fontConfErr  error
+	fontExtractOnce sync.Once
+	fontExtractErr  error
+
+	fontConfMu  sync.RWMutex
+	fontConf    text.FontConfiguration
+	fontConfErr error
 )
 
 // fontConfig lazily extracts the embedded fonts and builds the font
-// configuration, once per process.
+// configuration. Extraction happens once per process; the configuration is
+// rebuilt (and swapped) whenever reloadFonts is called, e.g. after new
+// Google Fonts are downloaded.
 func fontConfig() (text.FontConfiguration, error) {
-	fontConfOnce.Do(func() {
-		fontConfErr = setupFonts()
-	})
+	fontConfMu.RLock()
+	if fontConf != nil {
+		fc := fontConf
+		err := fontConfErr
+		fontConfMu.RUnlock()
+		return fc, err
+	}
+	fontConfMu.RUnlock()
+
+	fontConfMu.Lock()
+	defer fontConfMu.Unlock()
+	if fontConf != nil {
+		return fontConf, fontConfErr
+	}
+	fontConfErr = buildFontConfig()
 	return fontConf, fontConfErr
 }
 
-func setupFonts() error {
+// reloadFonts rescans the fonts directory and swaps the active font
+// configuration under the write lock. Extraction is not re-run; it is
+// idempotent and keyed to the first dataDir seen.
+func reloadFonts() {
+	fontConfMu.Lock()
+	defer fontConfMu.Unlock()
+	fontConfErr = buildFontConfig()
+}
+
+func buildFontConfig() error {
+	fontExtractOnce.Do(func() {
+		fontExtractErr = extractFonts()
+	})
+	if fontExtractErr != nil {
+		return fontExtractErr
+	}
+
+	fontExtractDir := filepath.Join(dataDir(), "fonts")
+	cfg := fontconfig.Standard.Copy()
+	fs, err := cfg.ScanFontDirectories(fontExtractDir)
+	if err != nil {
+		return fmt.Errorf("scan fonts: %w", err)
+	}
+	fontConf = text.NewFontConfigurationPango(fcfonts.NewFontMap(cfg, fs))
+	return nil
+}
+
+func extractFonts() error {
 	fontExtractDir := filepath.Join(dataDir(), "fonts")
 	if err := os.MkdirAll(fontExtractDir, 0o755); err != nil {
 		return fmt.Errorf("create font dir: %w", err)
@@ -62,12 +106,5 @@ func setupFonts() error {
 			return fmt.Errorf("extract font %s: %w", e.Name(), err)
 		}
 	}
-
-	cfg := fontconfig.Standard.Copy()
-	fs, err := cfg.ScanFontDirectories(fontExtractDir)
-	if err != nil {
-		return fmt.Errorf("scan fonts: %w", err)
-	}
-	fontConf = text.NewFontConfigurationPango(fcfonts.NewFontMap(cfg, fs))
 	return nil
 }
