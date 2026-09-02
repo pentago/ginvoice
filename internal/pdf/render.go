@@ -1,21 +1,75 @@
 package pdf
 
 import (
-	"encoding/base64"
+	"bytes"
+	_ "embed"
 	"fmt"
+	"html"
+	"log"
+	"os"
 	"strings"
+	"text/template"
 
-	"github.com/gpdf-dev/gpdf/document"
-	"github.com/gpdf-dev/gpdf/pdf"
-	"github.com/gpdf-dev/gpdf/template"
-	"golang.org/x/image/font/gofont/gobold"
-	"golang.org/x/image/font/gofont/goregular"
+	goweasyprint "github.com/benoitkugler/go-weasyprint"
+	"github.com/benoitkugler/webrender/text"
 
 	"ginvoice/internal/email"
 	"ginvoice/internal/store"
 )
 
-const fontFamily = "goregular"
+// defaultInvoiceTemplate is the built-in invoice layout: plain HTML/CSS
+// rendered by go-weasyprint (pure Go, no browser). Users can override it by
+// placing an HTML file at templateOverridePath.
+//
+//go:embed invoice.html
+var defaultInvoiceTemplate string
+
+const templateOverridePath = "/data/invoice_template.html"
+
+// itemRow is one invoice line, all values preformatted.
+type itemRow struct {
+	Description string
+	Currency    string
+	UnitPrice   string
+	Quantity    string
+	Total       string
+}
+
+// invoiceView is the display model for invoice.html. All user-controlled
+// strings are HTML-escaped here; multi-line blocks are joined with <br>.
+type invoiceView struct {
+	MarginMM    float64
+	HeadingSize float64
+	BodySize    float64
+	LabelSize   float64
+	GrandSize   float64
+
+	AccentColor      string
+	TextColor        string
+	MutedColor       string
+	DividerColor     string
+	TableHeaderBg    string
+	TableHeaderColor string
+
+	Number    string
+	IssueDate string
+	DueDate   string
+	LogoData  string
+
+	ClientLines  string
+	CompanyLines string
+	ItemRows     []itemRow
+
+	SubtotalStr   string
+	DiscountLabel string
+	DiscountStr   string
+	TaxLabel      string
+	TaxStr        string
+	TotalStr      string
+
+	InvoiceNotesHTML string
+	NotesHTML        string
+}
 
 func formatMoney(cents int64, currency string) string {
 	amount := fmt.Sprintf("%.2f", float64(cents)/100)
@@ -25,239 +79,147 @@ func formatMoney(cents int64, currency string) string {
 	return currency + " " + amount
 }
 
-func hexColor(hex string) pdf.Color {
-	hex = strings.TrimPrefix(hex, "#")
-	if len(hex) != 6 {
-		return pdf.Black
-	}
-	r, g, b := 0, 0, 0
-	fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
-	return pdf.RGB(float64(r)/255, float64(g)/255, float64(b)/255)
-}
-
 func RenderInvoice(inv store.Invoice, company store.Company) ([]byte, error) {
 	return RenderInvoiceWithConfig(inv, company, DefaultConfig())
 }
 
 func RenderInvoiceWithConfig(inv store.Invoice, company store.Company, cfg TemplateConfig) ([]byte, error) {
-	accent := hexColor(cfg.AccentColor)
-	textCol := hexColor(cfg.TextColor)
-	muted := hexColor(cfg.MutedColor)
-	divider := hexColor(cfg.DividerColor)
+	fc, err := fontConfig()
+	if err != nil {
+		return nil, err
+	}
+	view := buildInvoiceView(inv, company, cfg)
 
+	// User override wins, but a broken template must not break invoicing.
+	if raw, err := os.ReadFile(templateOverridePath); err == nil && len(raw) > 0 {
+		pdf, err := render(string(raw), view, fc)
+		if err != nil {
+			log.Printf("invalid %s, using built-in invoice template: %v", templateOverridePath, err)
+		} else {
+			return pdf, nil
+		}
+	}
+	return render(defaultInvoiceTemplate, view, fc)
+}
+
+func render(tmplText string, view invoiceView, fc text.FontConfiguration) ([]byte, error) {
+	tmpl, err := template.New("invoice").Parse(tmplText)
+	if err != nil {
+		return nil, fmt.Errorf("parse invoice template: %w", err)
+	}
+	var htmlBuf bytes.Buffer
+	if err := tmpl.Execute(&htmlBuf, view); err != nil {
+		return nil, fmt.Errorf("execute invoice template: %w", err)
+	}
+	var out bytes.Buffer
+	if err := goweasyprint.HtmlToPdf(&out, goweasyprint.InputString(htmlBuf.String()), fc); err != nil {
+		return nil, fmt.Errorf("render pdf: %w", err)
+	}
+	return out.Bytes(), nil
+}
+
+func buildInvoiceView(inv store.Invoice, company store.Company, cfg TemplateConfig) invoiceView {
 	currency := inv.Currency
 	if currency == "" {
 		currency = "EUR"
-	}
-
-	doc := template.New(
-		template.WithFont(fontFamily, goregular.TTF),
-		template.WithFont(fontFamily+"-Bold", gobold.TTF),
-		template.WithDefaultFont(fontFamily, cfg.BodySize),
-		template.WithPageSize(document.A4),
-		template.WithMargins(document.UniformEdges(document.Mm(cfg.MarginMM))),
-		template.WithMetadata(document.DocumentMetadata{
-			Title:  "Invoice " + inv.Number,
-			Author: company.Name,
-		}),
-	)
-
-	page := doc.AddPage()
-
-	// ── 1. Title + logo ──
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(8, func(c *template.ColBuilder) {
-			c.Text("INVOICE", template.FontSize(cfg.HeadingSize), template.Bold(), template.TextColor(accent))
-		})
-		r.Col(4, func(c *template.ColBuilder) {
-			if company.LogoData != "" {
-				if logoBytes, ok := decodeDataURI(company.LogoData); ok {
-					c.Image(logoBytes, template.FitHeight(document.Mm(20)))
-				}
-			}
-		})
-	})
-
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(12, func(c *template.ColBuilder) { c.Spacer(document.Mm(16)) })
-	})
-
-	// ── 2. Three-column header: issued to | invoice info | from ──
-	labelStyle := []template.TextOption{
-		template.FontSize(cfg.LabelSize), template.Bold(), template.TextColor(muted),
-	}
-	bodyStyle := []template.TextOption{
-		template.FontSize(cfg.BodySize), template.TextColor(textCol),
 	}
 
 	clientName := inv.Client.CompanyName
 	if clientName == "" {
 		clientName = inv.Client.Name
 	}
-	clientLines := filterEmpty([]string{clientName, inv.Client.Address, inv.Client.Email})
 
-	companyLines := filterEmpty([]string{
-		company.Name,
-		company.AddressLine1,
-		company.AddressLine2,
-		strings.TrimSpace(company.PostalCode + " " + company.City),
-		joinComma(company.State, company.Country),
-	})
-	bankingLines := filterEmpty([]string{
-		strIf(company.IBAN != "", "IBAN: "+company.IBAN),
-		strIf(company.TaxID != "", "Tax ID: "+company.TaxID),
-	})
-
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(4, func(c *template.ColBuilder) {
-			c.Text("ISSUED TO:", labelStyle...)
-			for _, line := range clientLines {
-				c.Text(line, bodyStyle...)
-			}
-		})
-		r.Col(4, func(c *template.ColBuilder) {
-			c.Text("INVOICE NO:", labelStyle...)
-			c.Text(inv.Number, bodyStyle...)
-			c.Text("DATE:", labelStyle...)
-			c.Text(inv.IssueDate, bodyStyle...)
-			if inv.DueDate != "" {
-				c.Text("DUE DATE:", labelStyle...)
-				c.Text(inv.DueDate, bodyStyle...)
-			}
-		})
-		r.Col(4, func(c *template.ColBuilder) {
-			c.Text("FROM:", labelStyle...)
-			for _, line := range companyLines {
-				c.Text(line, bodyStyle...)
-			}
-			for _, line := range bankingLines {
-				c.Text(line, bodyStyle...)
-			}
-		})
-	})
-
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(12, func(c *template.ColBuilder) { c.Spacer(document.Mm(16)) })
-	})
-
-	// ── 3. Table ──
-	header := []string{"SERVICE", "CURRENCY", "RATE", "QTY", "TOTAL"}
-
-	rows := make([][]string, len(inv.Lines))
+	rows := make([]itemRow, len(inv.Lines))
 	for i, line := range inv.Lines {
-		rows[i] = []string{
-			line.Description,
-			currency,
-			formatMoney(line.UnitPrice, ""),
-			fmt.Sprintf("%.2f", line.Quantity),
-			formatMoney(line.LineTotal, ""),
+		rows[i] = itemRow{
+			Description: html.EscapeString(line.Description),
+			Currency:    currency,
+			UnitPrice:   formatMoney(line.UnitPrice, ""),
+			Quantity:    fmt.Sprintf("%.2f", line.Quantity),
+			Total:       formatMoney(line.LineTotal, ""),
 		}
 	}
 
-	theaderOpts := []template.TextOption{template.TextColor(textCol), template.Bold()}
-	if cfg.TableHeaderBg != "" {
-		theaderOpts = append(theaderOpts, template.BgColor(hexColor(cfg.TableHeaderBg)))
-	}
+	v := invoiceView{
+		MarginMM:    cfg.MarginMM,
+		HeadingSize: cfg.HeadingSize,
+		BodySize:    cfg.BodySize,
+		LabelSize:   cfg.LabelSize,
+		GrandSize:   cfg.LabelSize + 2,
 
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(12, func(c *template.ColBuilder) {
-			c.Table(header, nil,
-				template.ColumnWidths(45, 15, 15, 10, 15),
-				template.TableHeaderStyle(theaderOpts...),
-			)
-			c.Line(template.LineColor(divider), template.LineThickness(document.Pt(0.5)))
-			c.Table(nil, rows, template.ColumnWidths(45, 15, 15, 10, 15))
-		})
-	})
+		AccentColor:      cfg.AccentColor,
+		TextColor:        cfg.TextColor,
+		MutedColor:       cfg.MutedColor,
+		DividerColor:     cfg.DividerColor,
+		TableHeaderBg:    cfg.TableHeaderBg,
+		TableHeaderColor: cfg.TableHeaderColor,
 
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(12, func(c *template.ColBuilder) {
-			c.Spacer(document.Mm(5))
-			c.Line(template.LineColor(divider), template.LineThickness(document.Pt(0.5)))
-			c.Spacer(document.Mm(5))
-		})
-	})
+		Number:    html.EscapeString(inv.Number),
+		IssueDate: html.EscapeString(inv.IssueDate),
+		DueDate:   html.EscapeString(inv.DueDate),
+		LogoData:  company.LogoData,
 
-	// ── 4. Totals ──
-	totLabel := []template.TextOption{
-		template.FontSize(cfg.BodySize), template.Bold(), template.TextColor(accent), template.AlignRight(),
-	}
-	totVal := []template.TextOption{
-		template.FontSize(cfg.BodySize), template.Bold(), template.TextColor(accent), template.AlignRight(),
-	}
-	taxStyle := []template.TextOption{
-		template.FontSize(cfg.BodySize), template.TextColor(textCol), template.AlignRight(),
-	}
-	bigLabel := []template.TextOption{
-		template.FontSize(cfg.LabelSize + 2), template.Bold(), template.TextColor(accent), template.AlignRight(),
-	}
-	bigVal := []template.TextOption{
-		template.FontSize(cfg.LabelSize + 2), template.Bold(), template.TextColor(accent), template.AlignRight(),
-	}
+		ClientLines: joinHTML([]string{clientName, inv.Client.Address, inv.Client.Email}),
+		CompanyLines: joinHTML([]string{
+			company.Name,
+			company.AddressLine1,
+			company.AddressLine2,
+			strings.TrimSpace(company.PostalCode + " " + company.City),
+			joinComma(company.State, company.Country),
+			strIf(company.IBAN != "", "IBAN: "+company.IBAN),
+			strIf(company.TaxID != "", "Tax ID: "+company.TaxID),
+		}),
+		ItemRows:    rows,
+		SubtotalStr: formatMoney(inv.Subtotal, currency),
+		TotalStr:    formatMoney(inv.Total, currency),
 
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(9, func(c *template.ColBuilder) { c.Text("SUBTOTAL", totLabel...) })
-		r.Col(3, func(c *template.ColBuilder) { c.Text(formatMoney(inv.Subtotal, currency), totVal...) })
-	})
+		InvoiceNotesHTML: toHTML(invoiceNotes(inv, company)),
+	}
 
 	if inv.DiscountBPS > 0 {
-		discountPct := float64(inv.DiscountBPS) / 100
-		page.AutoRow(func(r *template.RowBuilder) {
-			r.Col(9, func(c *template.ColBuilder) {
-				c.Text(fmt.Sprintf("DISCOUNT (%.2f%%)", discountPct), totLabel...)
-			})
-			r.Col(3, func(c *template.ColBuilder) {
-				c.Text("- "+formatMoney(inv.DiscountAmount, currency), totVal...)
-			})
-		})
+		v.DiscountLabel = fmt.Sprintf("Discount (%.2f%%)", float64(inv.DiscountBPS)/100)
+		v.DiscountStr = "- " + formatMoney(inv.DiscountAmount, currency)
 	}
-
 	if inv.TaxRate > 0 {
-		taxPct := float64(inv.TaxRate) / 100
-		page.AutoRow(func(r *template.RowBuilder) {
-			r.Col(9, func(c *template.ColBuilder) {
-				c.Text(fmt.Sprintf("Tax (%.2f%%)", taxPct), taxStyle...)
-			})
-			r.Col(3, func(c *template.ColBuilder) {
-				c.Text(formatMoney(inv.TaxAmount, currency), taxStyle...)
-			})
-		})
+		v.TaxLabel = fmt.Sprintf("Tax (%.2f%%)", float64(inv.TaxRate)/100)
+		v.TaxStr = formatMoney(inv.TaxAmount, currency)
 	}
+	if cfg.ShowNotes {
+		v.NotesHTML = toHTML(inv.Notes)
+	}
+	return v
+}
 
-	page.AutoRow(func(r *template.RowBuilder) {
-		r.Col(9, func(c *template.ColBuilder) { c.Text("TOTAL", bigLabel...) })
-		r.Col(3, func(c *template.ColBuilder) { c.Text(formatMoney(inv.Total, currency), bigVal...) })
-	})
+// invoiceNotes resolves the notes fallback chain (client → company → built-in
+// default) and renders template variables like {{companyCity}}.
+func invoiceNotes(inv store.Invoice, company store.Company) string {
+	notes := inv.Client.InvoiceNotes
+	if notes == "" {
+		notes = company.InvoiceNotes
+	}
+	if notes == "" {
+		notes = store.DefaultInvoiceNotes
+	}
+	return email.RenderTemplate(notes, email.TemplateDataFor(inv, company))
+}
 
-	invoiceNotes := inv.Client.InvoiceNotes
-	if invoiceNotes == "" {
-		invoiceNotes = company.InvoiceNotes
+// joinHTML HTML-escapes each line, drops blanks and joins with <br>.
+func joinHTML(lines []string) string {
+	var out []string
+	for _, l := range lines {
+		if strings.TrimSpace(l) != "" {
+			out = append(out, html.EscapeString(l))
+		}
 	}
-	if invoiceNotes == "" {
-		invoiceNotes = store.DefaultInvoiceNotes
-	}
-	invoiceNotes = email.RenderTemplate(invoiceNotes, email.TemplateDataFor(inv, company))
-	if invoiceNotes != "" {
-		page.AutoRow(func(r *template.RowBuilder) {
-			r.Col(12, func(c *template.ColBuilder) {
-				c.Spacer(document.Mm(8))
-				c.Text("NOTES:", labelStyle...)
-				c.Text(invoiceNotes, bodyStyle...)
-			})
-		})
-	}
+	return strings.Join(out, "<br>")
+}
 
-	if cfg.ShowNotes && inv.Notes != "" {
-		page.AutoRow(func(r *template.RowBuilder) {
-			r.Col(12, func(c *template.ColBuilder) {
-				c.Spacer(document.Mm(8))
-				c.Text("NOTE:", labelStyle...)
-				c.Text(inv.Notes, bodyStyle...)
-			})
-		})
+// toHTML escapes the text and converts newlines to <br>. Empty stays empty.
+func toHTML(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return ""
 	}
-
-	return doc.Generate()
+	return strings.ReplaceAll(html.EscapeString(s), "\n", "<br>")
 }
 
 func strIf(cond bool, s string) string {
@@ -275,29 +237,4 @@ func joinComma(a, b string) string {
 		return a
 	}
 	return a + ", " + b
-}
-
-func filterEmpty(lines []string) []string {
-	var out []string
-	for _, l := range lines {
-		if strings.TrimSpace(l) != "" {
-			out = append(out, l)
-		}
-	}
-	return out
-}
-
-func decodeDataURI(dataURI string) ([]byte, bool) {
-	if !strings.HasPrefix(dataURI, "data:") {
-		return nil, false
-	}
-	base64Idx := strings.Index(dataURI, ";base64,")
-	if base64Idx < 0 {
-		return nil, false
-	}
-	decoded, err := base64.StdEncoding.DecodeString(dataURI[base64Idx+len(";base64,"):])
-	if err != nil {
-		return nil, false
-	}
-	return decoded, true
 }

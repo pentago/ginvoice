@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Invoice {{.Number}}</title>
+<style>
+  @page {
+    size: A4;
+    margin: {{.MarginMM}}mm;
+    @bottom-center {
+      content: counter(page) " / " counter(pages);
+      font-family: "DejaVu Sans";
+      font-size: 8pt;
+      color: {{.MutedColor}};
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "DejaVu Sans"; font-size: {{.BodySize}}pt; color: {{.TextColor}}; line-height: 1.45; }
+
+  .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12mm; }
+  h1 { font-size: {{.HeadingSize}}pt; font-weight: bold; color: {{.AccentColor}}; letter-spacing: 2px; }
+  .logo img { height: 20mm; }
+
+  .meta { display: flex; justify-content: space-between; margin-bottom: 10mm; }
+  .meta .col { width: 32%; }
+  .label { font-size: {{.LabelSize}}pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: {{.MutedColor}}; margin-bottom: 2mm; }
+
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 6mm; }
+  table.items th {
+    font-size: {{.LabelSize}}pt; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;
+    color: {{.TableHeaderColor}}; text-align: left; padding: 2.5mm 2mm;
+    border-bottom: 2px solid {{.AccentColor}};
+    {{if .TableHeaderBg}}background: {{.TableHeaderBg}};{{end}}
+  }
+  table.items td { padding: 2.5mm 2mm; border-bottom: 1px solid {{.DividerColor}}; vertical-align: top; }
+  table.items .num { text-align: right; white-space: nowrap; }
+
+  .totals { display: flex; justify-content: flex-end; margin-bottom: 10mm; }
+  .totals table { border-collapse: collapse; min-width: 70mm; }
+  .totals td { padding: 1.5mm 2mm; }
+  .totals .k { color: {{.MutedColor}}; }
+  .totals .v { text-align: right; white-space: nowrap; font-weight: bold; color: {{.AccentColor}}; }
+  .totals tr.tax .k, .totals tr.tax .v { color: {{.TextColor}}; font-weight: normal; }
+  .totals tr.grand td {
+    font-size: {{.GrandSize}}pt; font-weight: bold; color: {{.AccentColor}};
+    border-top: 2px solid {{.AccentColor}}; padding-top: 2.5mm;
+  }
+
+  .notes { border-top: 1px solid {{.DividerColor}}; padding-top: 5mm; color: {{.MutedColor}}; font-size: {{.LabelSize}}pt; margin-bottom: 6mm; }
+  .notes .label { margin-bottom: 1.5mm; }
+  .notes p { margin-bottom: 1mm; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>INVOICE</h1>
+    {{if .LogoData}}<div class="logo"><img src="{{.LogoData}}" alt="logo"></div>{{end}}
+  </div>
+
+  <div class="meta">
+    <div class="col">
+      <div class="label">Issued to</div>
+      <p>{{.ClientLines}}</p>
+    </div>
+    <div class="col">
+      <div class="label">Invoice</div>
+      <p>No. <strong>{{.Number}}</strong></p>
+      <p>Issued: {{.IssueDate}}</p>
+      {{if .DueDate}}<p>Due: {{.DueDate}}</p>{{end}}
+    </div>
+    <div class="col">
+      <div class="label">From</div>
+      <p>{{.CompanyLines}}</p>
+    </div>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width: 46%">Service</th>
+        <th class="num">Currency</th>
+        <th class="num">Rate</th>
+        <th class="num">Qty</th>
+        <th class="num">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .ItemRows}}
+      <tr>
+        <td>{{.Description}}</td>
+        <td class="num">{{.Currency}}</td>
+        <td class="num">{{.UnitPrice}}</td>
+        <td class="num">{{.Quantity}}</td>
+        <td class="num">{{.Total}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <table>
+      <tr><td class="k">Subtotal</td><td class="v">{{.SubtotalStr}}</td></tr>
+      {{if .DiscountStr}}<tr><td class="k">{{.DiscountLabel}}</td><td class="v">{{.DiscountStr}}</td></tr>{{end}}
+      {{if .TaxStr}}<tr class="tax"><td class="k">{{.TaxLabel}}</td><td class="v">{{.TaxStr}}</td></tr>{{end}}
+      <tr class="grand"><td>Total</td><td class="v">{{.TotalStr}}</td></tr>
+    </table>
+  </div>
+
+  {{if .InvoiceNotesHTML}}
+  <div class="notes">
+    <div class="label">Notes</div>
+    <p>{{.InvoiceNotesHTML}}</p>
+  </div>
+  {{end}}
+  {{if .NotesHTML}}
+  <div class="notes">
+    <div class="label">Note</div>
+    <p>{{.NotesHTML}}</p>
+  </div>
+  {{end}}
+</body>
+</html>
