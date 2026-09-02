@@ -12,6 +12,7 @@ import (
 	"github.com/a-h/templ"
 
 	"ginvoice/internal/config"
+	"ginvoice/internal/pdf"
 	"ginvoice/internal/store"
 	"ginvoice/internal/views"
 )
@@ -75,6 +76,12 @@ func (h *CompanyHandler) SaveSettings(w http.ResponseWriter, r *http.Request) {
 	// handle logo upload; keep existing logo when no new file is posted
 	existing, _, _ := store.GetCompany(h.DB)
 	c.LogoData = existing.LogoData
+
+	if err := pdf.ValidateConfig(c.PdfConfig); err != nil {
+		// 200 so htmx swaps in the form with the error (htmx ignores 4xx by default)
+		templ.Handler(views.SettingsForm(c, err.Error())).ServeHTTP(w, r)
+		return
+	}
 
 	file, _, err := r.FormFile("logo")
 	if err == nil {

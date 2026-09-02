@@ -200,3 +200,37 @@ func TestCompany_BlankFieldsGetDefaults(t *testing.T) {
 		t.Fatalf("GetCompany: ok=%v err=%v", ok, err)
 	}
 }
+
+// S5: invalid pdf_config (bad color, unknown key, broken JSON) is rejected
+// with an inline form error and nothing is saved — LoadConfig silently falls
+// back to defaults at render time, so a typo must surface at save time.
+func TestCompany_InvalidPdfConfigRejected(t *testing.T) {
+	db, h := newCompanyTestEnv(t)
+
+	for _, cfg := range []string{
+		`{"accent_color": "blue"}`,   // not #RRGGBB
+		`{"accentColor": "#1F1F1F"}`, // unknown key (typo)
+		`{"accent_color":`,           // broken JSON
+	} {
+		rec := postSettings(t, h, map[string]string{"name": "Acme GmbH", "pdf_config": cfg}, "", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("pdf_config=%s: status = %d, want 200 (htmx swaps the form back); body: %s", cfg, rec.Code, rec.Body.String())
+		}
+		if !bytes.Contains(rec.Body.Bytes(), []byte("alert-error")) {
+			t.Errorf("pdf_config=%s: response missing alert-error; body: %s", cfg, rec.Body.String())
+		}
+		if _, ok, _ := store.GetCompany(db); ok {
+			t.Errorf("pdf_config=%s: company row written despite invalid config", cfg)
+		}
+	}
+
+	valid := `{"accent_color": "#1F1F1F"}`
+	rec := postSettings(t, h, map[string]string{"name": "Acme GmbH", "pdf_config": valid}, "", nil)
+	if rec.Code != http.StatusOK || bytes.Contains(rec.Body.Bytes(), []byte("alert-error")) {
+		t.Fatalf("valid pdf_config rejected: status %d, body: %s", rec.Code, rec.Body.String())
+	}
+	c, ok, _ := store.GetCompany(db)
+	if !ok || c.PdfConfig != valid {
+		t.Errorf("valid pdf_config not stored: ok=%v cfg=%q", ok, c.PdfConfig)
+	}
+}

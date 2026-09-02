@@ -1,9 +1,15 @@
 package pdf
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strings"
+)
 
 // TemplateConfig controls the visual style of the PDF invoice. Every field
-// maps directly to a maroto rendering decision. Missing keys in a partial JSON
+// maps directly to a CSS value in invoice.html. Missing keys in a partial JSON
 // config fall back to the DefaultConfig values via LoadConfig.
 type TemplateConfig struct {
 	AccentColor      string  `json:"accent_color"`
@@ -20,7 +26,7 @@ type TemplateConfig struct {
 }
 
 // DefaultConfig returns the Canva minimal template defaults: monochrome
-// charcoal on near-white, generous margins, Helvetica.
+// charcoal on near-white, generous margins, DejaVu Sans.
 func DefaultConfig() TemplateConfig {
 	return TemplateConfig{
 		AccentColor:      "#1F1F1F",
@@ -57,4 +63,36 @@ func (c TemplateConfig) JSON() (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
+var colorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// ValidateConfig reports invalid JSON, unknown keys, or malformed colors in a
+// PDF config string; empty is valid (defaults apply). Used to reject bad
+// settings at save time — LoadConfig silently falls back to defaults when
+// rendering, so without this a typo would no-op invisibly.
+func ValidateConfig(jsonStr string) error {
+	if strings.TrimSpace(jsonStr) == "" {
+		return nil
+	}
+	var cfg TemplateConfig
+	dec := json.NewDecoder(bytes.NewReader([]byte(jsonStr)))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&cfg); err != nil {
+		return fmt.Errorf("invalid PDF config: %w", err)
+	}
+	colors := []struct{ name, val string }{
+		{"accent_color", cfg.AccentColor},
+		{"text_color", cfg.TextColor},
+		{"muted_color", cfg.MutedColor},
+		{"divider_color", cfg.DividerColor},
+		{"table_header_bg", cfg.TableHeaderBg},
+		{"table_header_color", cfg.TableHeaderColor},
+	}
+	for _, c := range colors {
+		if c.val != "" && !colorRe.MatchString(c.val) {
+			return fmt.Errorf("%s: %q is not a valid #RRGGBB color", c.name, c.val)
+		}
+	}
+	return nil
 }

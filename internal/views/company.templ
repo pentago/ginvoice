@@ -18,7 +18,7 @@ templ SettingsPage(c store.Company) {
 		@Nav()
 		<main class="container">
 			<h1>Company Settings</h1>
-			@SettingsForm(c)
+			@SettingsForm(c, "")
 		</main>
 		<script>
 			(function() {
@@ -89,13 +89,16 @@ templ SettingsPage(c store.Company) {
 	</html>
 }
 
-templ SettingsForm(c store.Company) {
+templ SettingsForm(c store.Company, saveErr string) {
 	<form
 		hx-post="/company"
 		hx-swap="outerHTML"
 		enctype="multipart/form-data"
 		class="card"
 	>
+		if saveErr != "" {
+			<p class="alert alert-error">{ saveErr }</p>
+		}
 		<label>Company Name *<br/>
 			<input type="text" name="name" value={ c.Name } required/>
 		</label>
@@ -195,6 +198,6 @@ templ SettingsForm(c store.Company) {
 templ SettingsSaved(c store.Company) {
 	<div id="settings-saved">
 		<p>✓ Settings saved for <strong>{ c.Name }</strong></p>
-		@SettingsForm(c)
+		@SettingsForm(c, "")
 	</div>
 }
