@@ -2,9 +2,10 @@ package views
 
 import "ginvoice/internal/store"
 import "ginvoice/internal/email"
+import "ginvoice/internal/pdf"
 import "fmt"
 
-templ SettingsPage(c store.Company) {
+templ SettingsPage(c store.Company, cfg pdf.TemplateConfig, fonts []string) {
 	<!DOCTYPE html>
 	<html lang="en">
 	<head>
@@ -18,7 +19,7 @@ templ SettingsPage(c store.Company) {
 		@Nav()
 		<main class="container">
 			<h1>Company Settings</h1>
-			@SettingsForm(c, "")
+			@SettingsForm(c, cfg, fonts, "")
 		</main>
 		<script>
 			(function() {
@@ -89,7 +90,7 @@ templ SettingsPage(c store.Company) {
 	</html>
 }
 
-templ SettingsForm(c store.Company, saveErr string) {
+templ SettingsForm(c store.Company, cfg pdf.TemplateConfig, fonts []string, saveErr string) {
 	<form
 		hx-post="/company"
 		hx-swap="outerHTML"
@@ -186,18 +187,116 @@ templ SettingsForm(c store.Company, saveErr string) {
 			<small>Preview (sample data):</small>
 			<iframe id="email-preview" style="width: 100%; height: 400px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;"></iframe>
 		</div>
-		<h3>PDF Template Config</h3>
-		<small>JSON config for the invoice PDF. Leave blank for defaults. Keys: accent_color, text_color, muted_color, divider_color, table_header_bg, table_header_color, heading_size, body_size, label_size, margin_mm, show_notes.</small>
-		<label>PDF Config (JSON)<br/>
-			<textarea name="pdf_config" rows="16" placeholder={ "{\n  \"accent_color\": \"#1F1F1F\",\n  \"heading_size\": 48\n}" }>{ c.PdfConfig }</textarea>
+		<h3>PDF Style</h3>
+		<small>Leave blank to inherit the default font. Fonts download from Google Fonts on save.</small>
+		<datalist id="font-catalog">
+			for _, f := range fonts {
+				<option value={ f }/>
+			}
+		</datalist>
+		<div class="form-row">
+			<div class="form-group">
+				<label>Default font<br/>
+					<input type="text" name="font_family" list="font-catalog" value={ cfg.FontFamily } placeholder="DejaVu Sans"/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Title font<br/>
+					<input type="text" name="font_title" list="font-catalog" value={ cfg.FontTitle } placeholder="DejaVu Sans"/>
+				</label>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="form-group">
+				<label>Details font<br/>
+					<input type="text" name="font_details" list="font-catalog" value={ cfg.FontDetails } placeholder="DejaVu Sans"/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Body font<br/>
+					<input type="text" name="font_body" list="font-catalog" value={ cfg.FontBody } placeholder="DejaVu Sans"/>
+				</label>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="form-group">
+				<label>Notes font<br/>
+					<input type="text" name="font_notes" list="font-catalog" value={ cfg.FontNotes } placeholder="DejaVu Sans"/>
+				</label>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="form-group">
+				<label>Accent color<br/>
+					<input type="color" name="accent_color" value={ cfg.AccentColor }/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Text color<br/>
+					<input type="color" name="text_color" value={ cfg.TextColor }/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Muted color<br/>
+					<input type="color" name="muted_color" value={ cfg.MutedColor }/>
+				</label>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="form-group">
+				<label>Divider color<br/>
+					<input type="color" name="divider_color" value={ cfg.DividerColor }/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Table header color<br/>
+					<input type="color" name="table_header_color" value={ cfg.TableHeaderColor }/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Table header background<br/>
+					<input type="text" name="table_header_bg" value={ cfg.TableHeaderBg } placeholder="empty = transparent"/>
+				</label>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="form-group">
+				<label>Heading size<br/>
+					<input type="number" step="0.5" min="1" name="heading_size" value={ fmt.Sprintf("%g", cfg.HeadingSize) }/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Body size<br/>
+					<input type="number" step="0.5" min="1" name="body_size" value={ fmt.Sprintf("%g", cfg.BodySize) }/>
+				</label>
+			</div>
+			<div class="form-group">
+				<label>Label size<br/>
+					<input type="number" step="0.5" min="1" name="label_size" value={ fmt.Sprintf("%g", cfg.LabelSize) }/>
+				</label>
+			</div>
+		</div>
+		<div class="form-row">
+			<div class="form-group">
+				<label>Margin (mm)<br/>
+					<input type="number" step="1" min="0" name="margin_mm" value={ fmt.Sprintf("%g", cfg.MarginMM) }/>
+				</label>
+			</div>
+		</div>
+		<label>
+			<input type="checkbox" name="show_notes"
+				if cfg.ShowNotes {
+					checked
+				}
+			/> Show notes section on invoices
 		</label>
 		<button type="submit">Save</button>
 	</form>
 }
 
-templ SettingsSaved(c store.Company) {
+templ SettingsSaved(c store.Company, cfg pdf.TemplateConfig, fonts []string) {
 	<div id="settings-saved">
 		<p>✓ Settings saved for <strong>{ c.Name }</strong></p>
-		@SettingsForm(c, "")
+		@SettingsForm(c, cfg, fonts, "")
 	</div>
 }

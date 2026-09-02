@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/base64"
+	"fmt"
 	"io/fs"
 	"mime/multipart"
 	"net/http"
@@ -16,6 +17,25 @@ import (
 	"ginvoice/internal/config"
 	"ginvoice/internal/store"
 )
+
+// fontTestDataDir is a persistent data dir shared by the font-download test.
+// DownloadFamilyFonts calls reloadFonts(), which swaps the process-global font
+// configuration to scan this dir. It must survive the whole test run (not be a
+// per-test t.TempDir) so later PDF-rendering tests keep working; TestMain cleans
+// it up after all tests.
+var fontTestDataDir string
+
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "ginvoice-fonttest-")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "create font test dir: %v\n", err)
+		os.Exit(1)
+	}
+	fontTestDataDir = dir
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
+}
 
 func newCompanyTestEnv(t *testing.T) (*sql.DB, *CompanyHandler) {
 	t.Helper()
@@ -201,36 +221,181 @@ func TestCompany_BlankFieldsGetDefaults(t *testing.T) {
 	}
 }
 
-// S5: invalid pdf_config (bad color, unknown key, broken JSON) is rejected
-// with an inline form error and nothing is saved — LoadConfig silently falls
-// back to defaults at render time, so a typo must surface at save time.
+// S5: invalid PDF style (bad color, bad font name) is rejected with an inline
+// form error and nothing is saved — LoadConfig silently falls back to defaults
+// at render time, so a typo must surface at save time.
 func TestCompany_InvalidPdfConfigRejected(t *testing.T) {
 	db, h := newCompanyTestEnv(t)
 
-	for _, cfg := range []string{
-		`{"accent_color": "blue"}`,   // not #RRGGBB
-		`{"accentColor": "#1F1F1F"}`, // unknown key (typo)
-		`{"accent_color":`,           // broken JSON
+	for _, tc := range []struct{ name, field, val string }{
+		{"bad color", "accent_color", "blue"},   // not #RRGGBB
+		{"bad font", "font_family", "Bad Font!"}, // invalid font name chars
 	} {
-		rec := postSettings(t, h, map[string]string{"name": "Acme GmbH", "pdf_config": cfg}, "", nil)
+		rec := postSettings(t, h, map[string]string{"name": "Acme GmbH", tc.field: tc.val}, "", nil)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("pdf_config=%s: status = %d, want 200 (htmx swaps the form back); body: %s", cfg, rec.Code, rec.Body.String())
+			t.Fatalf("%s: status = %d, want 200 (htmx swaps the form back); body: %s", tc.name, rec.Code, rec.Body.String())
 		}
 		if !bytes.Contains(rec.Body.Bytes(), []byte("alert-error")) {
-			t.Errorf("pdf_config=%s: response missing alert-error; body: %s", cfg, rec.Body.String())
+			t.Errorf("%s: response missing alert-error; body: %s", tc.name, rec.Body.String())
 		}
 		if _, ok, _ := store.GetCompany(db); ok {
-			t.Errorf("pdf_config=%s: company row written despite invalid config", cfg)
+			t.Errorf("%s: company row written despite invalid config", tc.name)
 		}
 	}
 
-	valid := `{"accent_color": "#1F1F1F"}`
-	rec := postSettings(t, h, map[string]string{"name": "Acme GmbH", "pdf_config": valid}, "", nil)
+	valid := map[string]string{"name": "Acme GmbH", "accent_color": "#1F1F1F"}
+	rec := postSettings(t, h, valid, "", nil)
 	if rec.Code != http.StatusOK || bytes.Contains(rec.Body.Bytes(), []byte("alert-error")) {
-		t.Fatalf("valid pdf_config rejected: status %d, body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("valid config rejected: status %d, body: %s", rec.Code, rec.Body.String())
 	}
 	c, ok, _ := store.GetCompany(db)
-	if !ok || c.PdfConfig != valid {
-		t.Errorf("valid pdf_config not stored: ok=%v cfg=%q", ok, c.PdfConfig)
+	if !ok || !strings.Contains(c.PdfConfig, `"accent_color":"#1F1F1F"`) {
+		t.Errorf("valid config not stored: ok=%v cfg=%q", ok, c.PdfConfig)
+	}
+}
+
+// S1: saving with a font downloads it from Google Fonts and stores the config.
+func TestSettings_SaveWithFonts(t *testing.T) {
+	// httptest server serving the css2 API and TTF payloads.
+	var srv *httptest.Server
+	ttf, err := os.ReadFile(filepath.Join("..", "pdf", "fonts", "DejaVuSans.ttf"))
+	if err != nil {
+		t.Fatalf("read DejaVuSans.ttf: %v", err)
+	}
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/css2":
+			css := "@font-face { font-family: 'Test Family'; font-weight: 400; src: url(" + srv.URL + "/test-family-400.ttf); }" +
+				"@font-face { font-family: 'Test Family'; font-weight: 700; src: url(" + srv.URL + "/test-family-700.ttf); }"
+			w.Header().Set("Content-Type", "text/css"); w.Write([]byte(css))
+		case "/test-family-400.ttf", "/test-family-700.ttf":
+			w.Write(ttf)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	dataDir := fontTestDataDir
+	t.Setenv("GINVOICE_DATA_DIR", dataDir)
+	t.Setenv("GINVOICE_GOOGLE_FONTS_BASE_URL", srv.URL)
+
+	// Pre-populate the fonts dir with the embedded DejaVu fonts so that
+	// reloadFonts() (triggered by the download) finds a complete font set.
+	// fontExtractOnce runs once per process, so a prior test's extraction
+	// would otherwise leave this dir without the base fonts.
+	fontDir := filepath.Join(dataDir, "fonts")
+	if err := os.MkdirAll(fontDir, 0o755); err != nil {
+		t.Fatalf("mkdir fonts dir: %v", err)
+	}
+	entries, err := os.ReadDir(filepath.Join("..", "pdf", "fonts"))
+	if err != nil {
+		t.Fatalf("read embedded fonts dir: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join("..", "pdf", "fonts", e.Name()))
+		if err != nil {
+			t.Fatalf("read font %s: %v", e.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(fontDir, e.Name()), b, 0o644); err != nil {
+			t.Fatalf("write font %s: %v", e.Name(), err)
+		}
+	}
+
+	db, h := newCompanyTestEnv(t)
+	rec := postSettings(t, h, map[string]string{"name": "Acme GmbH", "font_family": "Test Family"}, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /company status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+
+	c, ok, err := store.GetCompany(db)
+	if err != nil || !ok {
+		t.Fatalf("GetCompany: ok=%v err=%v", ok, err)
+	}
+	if !strings.Contains(c.PdfConfig, `"font_family":"Test Family"`) {
+		t.Errorf("PdfConfig missing font_family; got %q", c.PdfConfig)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "fonts", "test-family-400.ttf")); err != nil {
+		t.Errorf("downloaded font file missing: %v", err)
+	}
+}
+
+// S2: when the font download fails, the save is rejected with an inline error
+// and the stored config is left unchanged.
+func TestSettings_SaveWithFonts_DownloadFails(t *testing.T) {
+	t.Setenv("GINVOICE_DATA_DIR", t.TempDir())
+	t.Setenv("GINVOICE_GOOGLE_FONTS_BASE_URL", "http://127.0.0.1:1")
+
+	db, h := newCompanyTestEnv(t)
+	// seed a company with an existing config
+	if err := store.UpsertCompany(db, store.Company{Name: "Acme GmbH", PdfConfig: `{"accent_color":"#111111"}`}); err != nil {
+		t.Fatalf("seed company: %v", err)
+	}
+
+	rec := postSettings(t, h, map[string]string{"name": "Acme GmbH", "font_family": "Whatever"}, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /company status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("alert-error")) {
+		t.Errorf("response missing alert-error; body: %s", rec.Body.String())
+	}
+
+	c, ok, _ := store.GetCompany(db)
+	if !ok || c.PdfConfig != `{"accent_color":"#111111"}` {
+		t.Errorf("PdfConfig changed after failed download; got %q", c.PdfConfig)
+	}
+}
+
+// S2: saving with no fonts makes no network requests to the font API.
+func TestSettings_SaveWithoutFonts_NoNetwork(t *testing.T) {
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	dataDir := t.TempDir()
+	t.Setenv("GINVOICE_DATA_DIR", dataDir)
+	t.Setenv("GINVOICE_GOOGLE_FONTS_BASE_URL", srv.URL)
+
+	// seed the catalog cache so FontCatalog() reads locally and makes no network calls
+	if err := os.WriteFile(filepath.Join(dataDir, "fonts-catalog.json"), []byte(`["Test Family"]`), 0o644); err != nil {
+		t.Fatalf("seed catalog cache: %v", err)
+	}
+
+	_, h := newCompanyTestEnv(t)
+	rec := postSettings(t, h, map[string]string{"name": "Acme GmbH"}, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /company status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if requests != 0 {
+		t.Errorf("font API requests = %d, want 0", requests)
+	}
+}
+
+// S3: legacy JSON config prefills the new form fields.
+func TestSettings_LegacyConfigPrefillsForm(t *testing.T) {
+	t.Setenv("GINVOICE_DATA_DIR", t.TempDir())
+
+	db, h := newCompanyTestEnv(t)
+	if err := store.UpsertCompany(db, store.Company{Name: "Acme GmbH", PdfConfig: `{"accent_color":"#FF0000","show_notes":false}`}); err != nil {
+		t.Fatalf("seed company: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/company", nil)
+	rec := httptest.NewRecorder()
+	h.ShowSettings(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /company status = %d, want 200", rec.Code)
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`value="#FF0000"`)) {
+		t.Errorf("body missing prefilled accent color; body: %s", rec.Body.String())
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte(`name="show_notes" checked`)) {
+		t.Errorf("show_notes checkbox should be unchecked; body: %s", rec.Body.String())
 	}
 }

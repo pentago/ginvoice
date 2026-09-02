@@ -195,6 +195,13 @@ textarea:focus {
   box-shadow: 0 0 0 3px var(--focus-shadow);
 }
 
+input[type="color"] {
+  width: 3.5rem;
+  height: 2.6rem;
+  padding: 0.2rem;
+  cursor: pointer;
+}
+
 /* --- Buttons --- */
 button,
 a.btn {
