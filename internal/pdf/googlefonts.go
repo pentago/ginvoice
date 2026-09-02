@@ -93,6 +93,9 @@ func fetchCatalog() ([]string, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("catalog returned status %d", resp.StatusCode)
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -118,13 +121,20 @@ func fetchCatalog() ([]string, error) {
 		}
 	}
 	sort.Strings(names)
+	if len(names) == 0 {
+		// An error payload like {"error":"rate limited"} parses fine but
+		// must never replace a working cache with an empty list.
+		return nil, fmt.Errorf("catalog response has no families")
+	}
 	return names, nil
 }
 
 // DownloadFamilyFonts fetches the static TTFs for a font family and writes
 // them as <slug>-<weight>.ttf into dataDir()/fonts. It is a no-op when the
-// 400-weight file already exists. On success it reloads the font
-// configuration so the new fonts become available to the renderer.
+// 400-weight file already exists. Downloads are staged as .tmp files and
+// renamed into place only when every weight succeeded, so a partial failure
+// can never poison the skip-if-present cache check. On success it reloads
+// the font configuration so the new fonts become available to the renderer.
 func DownloadFamilyFonts(family string) error {
 	slug := slugify(family)
 	fontDir := filepath.Join(dataDir(), "fonts")
@@ -137,23 +147,38 @@ func DownloadFamilyFonts(family string) error {
 		return err
 	}
 	weights := parseFontFaces(css)
-	if len(weights) == 0 {
-		return fmt.Errorf("no font faces found for family %q", family)
+	if weights["400"] == "" {
+		return fmt.Errorf("no regular (400) weight found for family %q", family)
 	}
 	if err := os.MkdirAll(fontDir, 0o755); err != nil {
 		return err
 	}
+	staged := map[string]string{}
+	removeStaged := func() {
+		for _, tmp := range staged {
+			os.Remove(tmp)
+		}
+	}
 	for weight, src := range weights {
 		ttf, err := downloadTTF(src)
 		if err != nil {
+			removeStaged()
 			return fmt.Errorf("download %s-%s: %w", slug, weight, err)
 		}
-		if err := os.WriteFile(filepath.Join(fontDir, slug+"-"+weight+".ttf"), ttf, 0o644); err != nil {
+		tmp := filepath.Join(fontDir, slug+"-"+weight+".ttf.tmp")
+		if err := os.WriteFile(tmp, ttf, 0o644); err != nil {
+			removeStaged()
+			return err
+		}
+		staged[weight] = tmp
+	}
+	for weight, tmp := range staged {
+		if err := os.Rename(tmp, filepath.Join(fontDir, slug+"-"+weight+".ttf")); err != nil {
+			removeStaged()
 			return err
 		}
 	}
-	reloadFonts()
-	return nil
+	return reloadFonts()
 }
 
 func fetchCSS(family string) (string, error) {
@@ -231,6 +256,10 @@ func fontFaceBlocks(css string) []string {
 	return blocks
 }
 
+// downloadTTF fetches one font file and rejects anything that is not a
+// static TrueType font: TTC collections, WOFF/EOT wrappers, and variable
+// fonts (an fvar table in the SFNT directory) all render as invisible text
+// in this stack.
 func downloadTTF(src string) ([]byte, error) {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Get(src)
@@ -241,7 +270,17 @@ func downloadTTF(src string) ([]byte, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("ttf returned status %d", resp.StatusCode)
 	}
-	return io.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if len(b) < 4 || !(bytes.Equal(b[:4], []byte{0, 1, 0, 0}) || string(b[:4]) == "true") {
+		return nil, fmt.Errorf("not a TrueType font (magic %q)", b[:min(len(b), 4)])
+	}
+	if bytes.Contains(b[:min(len(b), 4096)], []byte("fvar")) {
+		return nil, fmt.Errorf("variable fonts are not supported")
+	}
+	return b, nil
 }
 
 // slugify lowercases a family name, converts spaces to dashes, and strips

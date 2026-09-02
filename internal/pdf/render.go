@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"text/template"
 
 	goweasyprint "github.com/benoitkugler/go-weasyprint"
@@ -108,6 +109,11 @@ func RenderInvoiceWithConfig(inv store.Invoice, company store.Company, cfg Templ
 	return render(defaultInvoiceTemplate, view, fc)
 }
 
+// renderMu serializes PDF rendering: the webrender/pango font machinery
+// mutates unsynchronized caches during layout and crashes (nil font in
+// harfbuzz shaping) when renders run concurrently.
+var renderMu sync.Mutex
+
 func render(tmplText string, view invoiceView, fc text.FontConfiguration) ([]byte, error) {
 	tmpl, err := template.New("invoice").Parse(tmplText)
 	if err != nil {
@@ -118,6 +124,8 @@ func render(tmplText string, view invoiceView, fc text.FontConfiguration) ([]byt
 		return nil, fmt.Errorf("execute invoice template: %w", err)
 	}
 	var out bytes.Buffer
+	renderMu.Lock()
+	defer renderMu.Unlock()
 	if err := goweasyprint.HtmlToPdf(&out, goweasyprint.InputString(htmlBuf.String()), fc); err != nil {
 		return nil, fmt.Errorf("render pdf: %w", err)
 	}
@@ -252,12 +260,15 @@ func joinComma(a, b string) string {
 }
 
 // resolveFont returns the section-specific font, else the family default,
-// else the built-in DejaVu Sans. Never empty.
+// else the built-in DejaVu Sans. Values failing the font-name syntax check
+// (e.g. legacy DB configs from before save-time validation existed) fall
+// through to the next fallback, so raw CSS can never reach the template.
+// Never empty.
 func resolveFont(section, family string) string {
-	if section != "" {
+	if fontNameRe.MatchString(section) {
 		return section
 	}
-	if family != "" {
+	if fontNameRe.MatchString(family) {
 		return family
 	}
 	return "DejaVu Sans"

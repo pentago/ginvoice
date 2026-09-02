@@ -41,7 +41,8 @@ var (
 // fontConfig lazily extracts the embedded fonts and builds the font
 // configuration. Extraction happens once per process; the configuration is
 // rebuilt (and swapped) whenever reloadFonts is called, e.g. after new
-// Google Fonts are downloaded.
+// Google Fonts are downloaded. A failed build is retried on the next call;
+// a previously working configuration is never replaced by a broken one.
 func fontConfig() (text.FontConfiguration, error) {
 	fontConfMu.RLock()
 	if fontConf != nil {
@@ -57,35 +58,45 @@ func fontConfig() (text.FontConfiguration, error) {
 	if fontConf != nil {
 		return fontConf, fontConfErr
 	}
-	fontConfErr = buildFontConfig()
+	fc, err := scanFontConfig()
+	if err != nil {
+		return nil, err
+	}
+	fontConf, fontConfErr = fc, nil
 	return fontConf, fontConfErr
 }
 
 // reloadFonts rescans the fonts directory and swaps the active font
-// configuration under the write lock. Extraction is not re-run; it is
-// idempotent and keyed to the first dataDir seen.
-func reloadFonts() {
+// configuration. A failed scan returns the error and leaves the previous
+// working configuration untouched — a bad font file must never take down
+// PDF rendering. Extraction is not re-run; it is idempotent and keyed to
+// the first dataDir seen.
+func reloadFonts() error {
+	fc, err := scanFontConfig()
+	if err != nil {
+		return err
+	}
 	fontConfMu.Lock()
 	defer fontConfMu.Unlock()
-	fontConfErr = buildFontConfig()
+	fontConf, fontConfErr = fc, nil
+	return nil
 }
 
-func buildFontConfig() error {
+func scanFontConfig() (text.FontConfiguration, error) {
 	fontExtractOnce.Do(func() {
 		fontExtractErr = extractFonts()
 	})
 	if fontExtractErr != nil {
-		return fontExtractErr
+		return nil, fontExtractErr
 	}
 
 	fontExtractDir := filepath.Join(dataDir(), "fonts")
 	cfg := fontconfig.Standard.Copy()
 	fs, err := cfg.ScanFontDirectories(fontExtractDir)
 	if err != nil {
-		return fmt.Errorf("scan fonts: %w", err)
+		return nil, fmt.Errorf("scan fonts: %w", err)
 	}
-	fontConf = text.NewFontConfigurationPango(fcfonts.NewFontMap(cfg, fs))
-	return nil
+	return text.NewFontConfigurationPango(fcfonts.NewFontMap(cfg, fs)), nil
 }
 
 func extractFonts() error {

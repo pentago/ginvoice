@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/png"
 	"os"
+	"sync"
 	"testing"
 
 	"ginvoice/internal/pdf"
@@ -141,4 +142,26 @@ func TestRenderInvoice_WithFontConfig(t *testing.T) {
 	if !bytes.HasPrefix(b, []byte("%PDF-")) {
 		t.Error("does not start with %PDF-")
 	}
+}
+
+// TestRenderInvoice_Concurrent runs 8 renders in parallel. The renderer's
+// font caches are not goroutine-safe, so renders must be serialized; this is
+// a regression guard for that serialization.
+func TestRenderInvoice_Concurrent(t *testing.T) {
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			b, err := pdf.RenderInvoice(testInvoice(), testCompany())
+			if err != nil {
+				t.Errorf("RenderInvoice: %v", err)
+				return
+			}
+			if len(b) == 0 {
+				t.Error("empty bytes")
+			}
+		}()
+	}
+	wg.Wait()
 }

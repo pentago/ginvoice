@@ -13,6 +13,153 @@ import (
 	"ginvoice/internal/store"
 )
 
+
+func TestDownloadFamilyFonts_PartialFailureLeavesNoCache(t *testing.T) {
+	origDir := os.Getenv("GINVOICE_DATA_DIR")
+	ttf, err := fontFiles.ReadFile("fonts/DejaVuSans.ttf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fail700 := true
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/css2":
+			w.Header().Set("Content-Type", "text/css")
+			fmt.Fprintf(w, `@font-face { font-family: 'Partial'; font-weight: 400; src: url(%s/p-400.ttf); }
+@font-face { font-family: 'Partial'; font-weight: 700; src: url(%s/p-700.ttf); }`, srv.URL, srv.URL)
+		case "/p-400.ttf":
+			w.Write(ttf)
+		case "/p-700.ttf":
+			if fail700 {
+				http.Error(w, "boom", http.StatusInternalServerError)
+				return
+			}
+			w.Write(ttf)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	t.Setenv("GINVOICE_GOOGLE_FONTS_BASE_URL", srv.URL)
+	dir := t.TempDir()
+	t.Setenv("GINVOICE_DATA_DIR", dir)
+
+	if err := DownloadFamilyFonts("Partial"); err == nil {
+		t.Fatal("expected error when the 700 download fails")
+	}
+	fontDir := filepath.Join(dir, "fonts")
+	entries, _ := os.ReadDir(fontDir)
+	if len(entries) != 0 {
+		names := []string{}
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("partial download left files behind: %v", names)
+	}
+
+	fail700 = false
+	if err := DownloadFamilyFonts("Partial"); err != nil {
+		t.Fatalf("retry after server fixed: %v", err)
+	}
+	for _, f := range []string{"partial-400.ttf", "partial-700.ttf"} {
+		if _, err := os.Stat(filepath.Join(fontDir, f)); err != nil {
+			t.Errorf("retry: expected %s: %v", f, err)
+		}
+	}
+
+	// The successful retry swapped the global font config at this test's
+	// temp dir, which is deleted on teardown. Restore the persistent data
+	// dir so later render tests still find DejaVu Sans.
+	os.Setenv("GINVOICE_DATA_DIR", origDir)
+	_ = extractFonts()
+	reloadFonts()
+}
+
+func TestDownloadFamilyFonts_RejectsNonTTF(t *testing.T) {
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/css2" {
+			w.Header().Set("Content-Type", "text/css")
+			fmt.Fprintf(w, `@font-face { font-family: 'Woff'; font-weight: 400; src: url(%s/w-400.woff2); }`, srv.URL)
+			return
+		}
+		w.Write([]byte("wOF2" + strings.Repeat("\x00", 100)))
+	}))
+	defer srv.Close()
+	t.Setenv("GINVOICE_GOOGLE_FONTS_BASE_URL", srv.URL)
+	dir := t.TempDir()
+	t.Setenv("GINVOICE_DATA_DIR", dir)
+
+	if err := DownloadFamilyFonts("Woff"); err == nil {
+		t.Fatal("expected error for woff2 payload")
+	}
+	entries, _ := os.ReadDir(filepath.Join(dir, "fonts"))
+	if len(entries) != 0 {
+		t.Errorf("non-TTF payload left %d files behind", len(entries))
+	}
+}
+
+func TestFontCatalog_Non200NotCached(t *testing.T) {
+	serveErr := true
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if serveErr {
+			http.Error(w, "rate limited", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"familyMetadataList":[{"family":"Zebra"}]}`)
+	}))
+	defer srv.Close()
+	t.Setenv("GINVOICE_GOOGLE_FONTS_BASE_URL", srv.URL)
+	dir := t.TempDir()
+	t.Setenv("GINVOICE_DATA_DIR", dir)
+
+	if got := FontCatalog(); got != nil {
+		t.Fatalf("500 response: FontCatalog() = %v, want nil", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "fonts-catalog.json")); !os.IsNotExist(err) {
+		t.Error("error response was written to the cache")
+	}
+	serveErr = false
+	if got := FontCatalog(); len(got) != 1 || got[0] != "Zebra" {
+		t.Fatalf("after recovery: FontCatalog() = %v, want [Zebra]", got)
+	}
+}
+
+func TestBuildInvoiceView_SanitizesFontNames(t *testing.T) {
+	inv := store.Invoice{Client: store.Client{Name: "Acme"}}
+	co := store.Company{Name: "Co"}
+
+	v := buildInvoiceView(inv, co, TemplateConfig{FontFamily: `Evil";}`})
+	if v.FontFamily != "DejaVu Sans" {
+		t.Errorf("invalid FontFamily = %q, want DejaVu Sans", v.FontFamily)
+	}
+	v = buildInvoiceView(inv, co, TemplateConfig{FontFamily: "Inter", FontTitle: `Bad";}`})
+	if v.FontTitle != "Inter" {
+		t.Errorf("invalid FontTitle = %q, want fallback Inter", v.FontTitle)
+	}
+}
+
+func TestReloadFonts_FailureKeepsWorkingConfig(t *testing.T) {
+	t.Setenv("GINVOICE_DATA_DIR", t.TempDir())
+	if _, err := fontConfig(); err != nil {
+		t.Fatalf("initial fontConfig: %v", err)
+	}
+	// Point at a data dir whose fonts subdirectory does not exist.
+	// ScanFontDirectories returns an error for a non-existent directory
+	// (but silently returns an empty set for a regular file), so this is
+	// the reliable way to force a reload failure.
+	bad := t.TempDir()
+	os.Setenv("GINVOICE_DATA_DIR", bad)
+	if err := reloadFonts(); err == nil {
+		t.Fatal("reloadFonts with a missing fonts dir should return an error")
+	}
+	if _, err := fontConfig(); err != nil {
+		t.Errorf("fontConfig poisoned after failed reload: %v", err)
+	}
+}
+
 func TestDownloadFamilyFonts_SavesStaticWeights(t *testing.T) {
 	origDir := os.Getenv("GINVOICE_DATA_DIR")
 	ttf, err := fontFiles.ReadFile("fonts/DejaVuSans.ttf")
