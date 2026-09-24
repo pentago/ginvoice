@@ -9,16 +9,15 @@ import (
 	"strings"
 )
 
-// ErrInvoiceNotDraft is returned by DeleteInvoice when the invoice is not
-// in draft status (sent or paid invoices are immutable).
+// ErrInvoiceNotDraft is returned when an operation requires a draft invoice
+// (sent or paid invoices are immutable except for deletion).
 var ErrInvoiceNotDraft = errors.New("invoice is not in draft status")
-
 
 // InvoiceLine is a single line item on an invoice.
 type InvoiceLine struct {
 	ID          int64
 	InvoiceID   int64
-	ServiceID   *int64  // nullable
+	ServiceID   *int64 // nullable
 	Description string
 	Quantity    float64 // REAL — allows 1.5 hours
 	UnitPrice   int64   // integer cents
@@ -35,12 +34,12 @@ type Invoice struct {
 	DueDate        string
 	Status         string // "draft" | "sent"
 	Notes          string
-	Subtotal       int64  // integer cents
-	DiscountBPS    int64  // basis points (100 = 1%)
-	DiscountAmount int64  // integer cents
-	TaxRate        int64  // basis points
-	TaxAmount      int64  // integer cents
-	Total          int64  // integer cents
+	Subtotal       int64 // integer cents
+	DiscountBPS    int64 // basis points (100 = 1%)
+	DiscountAmount int64 // integer cents
+	TaxRate        int64 // basis points
+	TaxAmount      int64 // integer cents
+	Total          int64 // integer cents
 	Currency       string
 	SentAt         string
 	CreatedAt      string
@@ -72,23 +71,50 @@ func ParseCentsFromForm(s string) int64 {
 	return int64(math.Round(f * 100))
 }
 
-// NextInvoiceNumber generates the next sequential invoice number for the given
-// prefix and year. The pattern is PREFIX-YYYY-NNN.
-func NextInvoiceNumber(db *sql.DB, prefix string, year int) (string, error) {
+// FormatInvoiceNumber builds an invoice number string: PREFIX-YYYY-NNN, or
+// YYYY-NNN when prefix is empty (no prefix is forced on the user).
+func FormatInvoiceNumber(prefix string, year, seq int) string {
+	if prefix != "" {
+		return fmt.Sprintf("%s-%d-%03d", prefix, year, seq)
+	}
+	return fmt.Sprintf("%d-%03d", year, seq)
+}
+
+// NextInvoiceSeq returns the next sequence number for the given client,
+// prefix, and year — scoped to that specific client so numbering is
+// per-customer even when multiple clients share (or lack) a prefix.
+func NextInvoiceSeq(db *sql.DB, clientID int64, prefix string, year int) (int, error) {
+	var pattern string
+	if prefix != "" {
+		pattern = fmt.Sprintf("%s-%d-%%", prefix, year)
+	} else {
+		pattern = fmt.Sprintf("%d-%%", year)
+	}
 	var last string
-	pattern := fmt.Sprintf("%s-%d-%%", prefix, year)
 	err := db.QueryRow(
-		`SELECT COALESCE(MAX(number),'') FROM invoices WHERE number LIKE ?`, pattern,
+		`SELECT COALESCE(MAX(number),'') FROM invoices WHERE client_id = ? AND number LIKE ?`,
+		clientID, pattern,
 	).Scan(&last)
 	if err != nil {
-		return "", fmt.Errorf("next invoice number query: %w", err)
+		return 0, fmt.Errorf("next invoice seq query: %w", err)
 	}
 	n := 0
 	if last != "" {
 		parts := strings.Split(last, "-")
 		n, _ = strconv.Atoi(parts[len(parts)-1])
 	}
-	return fmt.Sprintf("%s-%d-%03d", prefix, year, n+1), nil
+	return n + 1, nil
+}
+
+// NextInvoiceNumber generates the next sequential invoice number for the given
+// client, prefix, and year. Numbering is scoped per-client (see NextInvoiceSeq),
+// so unrelated customers never share a sequence even without distinct prefixes.
+func NextInvoiceNumber(db *sql.DB, clientID int64, prefix string, year int) (string, error) {
+	seq, err := NextInvoiceSeq(db, clientID, prefix, year)
+	if err != nil {
+		return "", err
+	}
+	return FormatInvoiceNumber(prefix, year, seq), nil
 }
 
 // ListInvoices returns all invoices ordered by number descending.
@@ -264,21 +290,19 @@ func UpdateInvoice(db *sql.DB, inv Invoice, lines []InvoiceLine) error {
 	})
 }
 
-// DeleteInvoice removes an invoice and its line items (via CASCADE).
-// Sent/paid invoices cannot be deleted — only draft status is allowed.
+// DeleteInvoice removes an invoice and its line items (via CASCADE),
+// regardless of status — sent/paid invoices can be deleted too.
 func DeleteInvoice(db *sql.DB, id int64) error {
-	var status string
-	if err := db.QueryRow(`SELECT status FROM invoices WHERE id = ?`, id).Scan(&status); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return sql.ErrNoRows
-		}
-		return fmt.Errorf("check invoice %d status: %w", id, err)
-	}
-	if status != "draft" {
-		return fmt.Errorf("delete invoice %d: %w", id, ErrInvoiceNotDraft)
-	}
-	if _, err := db.Exec(`DELETE FROM invoices WHERE id = ?`, id); err != nil {
+	res, err := db.Exec(`DELETE FROM invoices WHERE id = ?`, id)
+	if err != nil {
 		return fmt.Errorf("delete invoice %d: %w", id, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete invoice %d: rows affected: %w", id, err)
+	}
+	if n == 0 {
+		return sql.ErrNoRows
 	}
 	return nil
 }

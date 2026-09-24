@@ -56,7 +56,7 @@ func seedCompany(t *testing.T, db *sql.DB) {
 	t.Helper()
 	company := store.Company{
 		Name:              "Test Company",
-		AddressLine1:            "123 Test St",
+		AddressLine1:      "123 Test St",
 		City:              "Testville",
 		Country:           "Testland",
 		Email:             "test@company.com",
@@ -150,8 +150,8 @@ func TestInvoice_CreateAndView(t *testing.T) {
 	if inv.Total != 4400 {
 		t.Errorf("total = %d, want 4400", inv.Total)
 	}
-	if inv.Number != "INV-2026-001" {
-		t.Errorf("number = %q, want INV-2026-001", inv.Number)
+	if inv.Number != "2026-001" {
+		t.Errorf("number = %q, want 2026-001", inv.Number)
 	}
 	if inv.ClientID != clientID {
 		t.Errorf("client_id = %d, want %d", inv.ClientID, clientID)
@@ -165,7 +165,7 @@ func TestInvoice_CreateAndView(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("GET %s: status = %d, want %d", loc, status, http.StatusOK)
 	}
-	if !strings.Contains(body, "INV-2026-001") {
+	if !strings.Contains(body, "2026-001") {
 		t.Errorf("view page does not contain invoice number")
 	}
 }
@@ -213,11 +213,11 @@ func TestInvoice_SequentialNumbering(t *testing.T) {
 		t.Fatalf("get invoice 2: %v", err)
 	}
 
-	if inv1.Number != "INV-2026-001" {
-		t.Errorf("invoice 1 number = %q, want INV-2026-001", inv1.Number)
+	if inv1.Number != "2026-001" {
+		t.Errorf("invoice 1 number = %q, want 2026-001", inv1.Number)
 	}
-	if inv2.Number != "INV-2026-002" {
-		t.Errorf("invoice 2 number = %q, want INV-2026-002", inv2.Number)
+	if inv2.Number != "2026-002" {
+		t.Errorf("invoice 2 number = %q, want 2026-002", inv2.Number)
 	}
 }
 
@@ -266,8 +266,8 @@ func TestInvoice_NoLinesRejects400(t *testing.T) {
 	clientID := seedClient(t, db, "Client C", "c@example.com")
 
 	data := url.Values{
-		"client_id":  {fmt.Sprintf("%d", clientID)},
-		"issue_date": {"2026-01-01"},
+		"client_id":    {fmt.Sprintf("%d", clientID)},
+		"issue_date":   {"2026-01-01"},
 		"tax_rate_pct": {"10"},
 	}
 
@@ -293,9 +293,9 @@ func TestInvoice_NoCompanyRejects400(t *testing.T) {
 	svcID := seedService(t, db, "Service", "General service", 10000)
 
 	data := url.Values{
-		"client_id":  {fmt.Sprintf("%d", clientID)},
-		"issue_date": {"2026-01-01"},
-		"tax_rate_pct": {"10"},
+		"client_id":          {fmt.Sprintf("%d", clientID)},
+		"issue_date":         {"2026-01-01"},
+		"tax_rate_pct":       {"10"},
 		"line_service_id[0]": {fmt.Sprintf("%d", svcID)},
 		"line_qty[0]":        {"1"},
 	}
@@ -469,7 +469,7 @@ func TestInvoice_ListPage(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("GET /invoices: status = %d", status)
 	}
-	if !strings.Contains(body, "INV-2026-001") {
+	if !strings.Contains(body, "2026-001") {
 		t.Errorf("list page does not contain invoice number")
 	}
 }
