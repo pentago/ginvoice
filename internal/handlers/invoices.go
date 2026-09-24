@@ -79,8 +79,42 @@ func (h *InvoicesHandler) New(w http.ResponseWriter, r *http.Request) {
 			inv.ClientID = clientID
 		}
 	}
+	year := time.Now().Year()
+	seq := h.previewSeq(inv.ClientID, year)
 
-	templ.Handler(views.NewInvoicePage(clients, services, inv)).ServeHTTP(w, r)
+	templ.Handler(views.NewInvoicePage(clients, services, inv, year, seq)).ServeHTTP(w, r)
+}
+
+// NextNumber handles GET /invoices/next-number — returns the invoice number
+// sequence input partial pre-filled with the next number for the given
+// client and year, for HTMX to refresh the field when either changes.
+func (h *InvoicesHandler) NextNumber(w http.ResponseWriter, r *http.Request) {
+	clientID, _ := strconv.ParseInt(r.URL.Query().Get("client_id"), 10, 64)
+	year := time.Now().Year()
+	if yearStr := strings.TrimSpace(r.URL.Query().Get("number_year")); yearStr != "" {
+		if y, err := strconv.Atoi(yearStr); err == nil && y > 0 {
+			year = y
+		}
+	}
+	templ.Handler(views.InvoiceNumberSeqPartial(h.previewSeq(clientID, year))).ServeHTTP(w, r)
+}
+
+// previewSeq computes the next auto-generated sequence number for display,
+// using the given client's prefix if set (no prefix if unset). It does not
+// reserve the number — Create recomputes it at save time.
+func (h *InvoicesHandler) previewSeq(clientID int64, year int) int {
+	var prefix string
+	if clientID > 0 {
+		if client, err := store.GetClient(h.DB, clientID); err == nil {
+			prefix = client.InvoiceNumberPrefix
+		}
+	}
+	seq, err := store.NextInvoiceSeq(h.DB, clientID, prefix, year)
+	if err != nil {
+		log.Printf("preview invoice seq: %v", err)
+		return 1
+	}
+	return seq
 }
 
 // LineItem handles GET /invoices/line-item — returns a line-item row partial for HTMX.
@@ -137,14 +171,41 @@ func (h *InvoicesHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	year := now.Year()
+	if yearStr := strings.TrimSpace(r.FormValue("number_year")); yearStr != "" {
+		y, err := strconv.Atoi(yearStr)
+		if err != nil || y < 1000 || y > 9999 {
+			http.Error(w, "invoice year must be a 4-digit year", http.StatusBadRequest)
+			return
+		}
+		year = y
+	}
 	prefix := client.InvoiceNumberPrefix
-	if prefix == "" {
-		prefix = "INV"
+
+	if seqStr := strings.TrimSpace(r.FormValue("number_seq")); seqStr != "" {
+		seq, err := strconv.Atoi(seqStr)
+		if err != nil || seq <= 0 {
+			http.Error(w, "invoice number must be a positive integer", http.StatusBadRequest)
+			return
+		}
+		inv.Number = store.FormatInvoiceNumber(prefix, year, seq)
+		inv.Status = "draft"
+		invoiceID, err := store.CreateInvoice(h.DB, inv, lines)
+		if err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint") {
+				http.Error(w, "invoice number already in use", http.StatusConflict)
+				return
+			}
+			log.Printf("create invoice: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/invoices/%d", invoiceID), http.StatusSeeOther)
+		return
 	}
 
-	// Try to create invoice with unique number, retry once on conflict
+	// Try to create invoice with an auto-generated number, retry once on conflict
 	for attempt := 0; attempt < 2; attempt++ {
-		num, err := store.NextInvoiceNumber(h.DB, prefix, year)
+		num, err := store.NextInvoiceNumber(h.DB, inv.ClientID, prefix, year)
 		if err != nil {
 			log.Printf("next invoice number: %v", err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
@@ -336,8 +397,8 @@ func (h *InvoicesHandler) parseInvoiceForm(w http.ResponseWriter, r *http.Reques
 		unitPrice := svc.DefaultUnitPrice
 
 		lines = append(lines, store.InvoiceLine{
-				ServiceID:   &sid,
-				Description: svc.Name,
+			ServiceID:   &sid,
+			Description: svc.Name,
 			Quantity:    qty,
 			UnitPrice:   unitPrice,
 			SortOrder:   i,
@@ -550,14 +611,6 @@ func (h *InvoicesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := store.DeleteInvoice(h.DB, id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-			return
-		}
-		if errors.Is(err, store.ErrInvoiceNotDraft) {
-			http.Error(w, "invoice is not in draft status", http.StatusConflict)
-			return
-		}
 		h.invoiceError(w, r, err)
 		return
 	}
@@ -594,10 +647,6 @@ func (h *InvoicesHandler) BatchDelete(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if err := store.DeleteInvoice(h.DB, id); err != nil {
-			if errors.Is(err, store.ErrInvoiceNotDraft) {
-				failed++
-				continue
-			}
 			failed++
 			continue
 		}
@@ -607,7 +656,7 @@ func (h *InvoicesHandler) BatchDelete(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("HX-Request") != "" {
 		w.Header().Set("Content-Type", "text/html")
 		if failed > 0 {
-			fmt.Fprintf(w, `<div class="alert alert-warning">Deleted %d invoice(s), %d failed (not draft).</div>`, deleted, failed)
+			fmt.Fprintf(w, `<div class="alert alert-warning">Deleted %d invoice(s), %d failed.</div>`, deleted, failed)
 		} else {
 			fmt.Fprintf(w, `<div class="alert alert-success">Deleted %d invoice(s).</div>`, deleted)
 		}

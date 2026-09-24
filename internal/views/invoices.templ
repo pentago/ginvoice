@@ -17,14 +17,28 @@ func isSelected(condition bool) string {
 }
 
 // invoicePrefix splits an invoice number like "OPS-2026-001" into prefix "OPS"
-// and remainder "2026-001". If there is no dash, prefix is "-" and the
-// remainder is the whole number (matching the pausal.rs convention where an
-// empty prefix renders as "-").
+// and remainder "2026-001". If there is no dash, or the number has no prefix
+// segment (starts with a 4-digit year, e.g. "2026-001"), prefix is "-" and
+// the remainder is the whole number (matching the pausal.rs convention where
+// an empty prefix renders as "-").
 func invoicePrefix(number string) (prefix, rest string) {
 	if i := strings.IndexByte(number, '-'); i >= 0 {
+		if before := number[:i]; len(before) == 4 && isDigits(before) {
+			return "-", number
+		}
 		return number[:i], number[i+1:]
 	}
 	return "-", number
+}
+
+// isDigits reports whether s consists only of ASCII digits.
+func isDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // invoiceYear extracts the 4-digit year from an IssueDate of the form
@@ -390,12 +404,24 @@ templ InvoiceRow(inv store.Invoice) {
 }
 
 // InvoiceForm renders the new/edit invoice form with client select and line items.
-// action is "/invoices" for create or "/invoices/{id}" for update.
-templ InvoiceForm(clients []store.Client, services []store.Service, invoice store.Invoice, action string) {
+// action is "/invoices" for create or "/invoices/{id}" for update. numberEditable
+// controls whether the invoice number can be changed by the user (true for
+// create, where year/sequence default to the next auto-generated values;
+// false for edit, where the number is fixed once assigned). numberYear and
+// numberSeq are the create-form defaults; ignored when numberEditable is false.
+templ InvoiceForm(clients []store.Client, services []store.Service, invoice store.Invoice, action string, numberEditable bool, numberYear, numberSeq int) {
 	<form method="post" action={ templ.URL(action) } class="card">
 		<div class="form-group">
 			<label for="client_id">Client *</label>
-			<select id="client_id" name="client_id" required>
+			<select id="client_id" name="client_id" required
+				if numberEditable {
+					hx-get="/invoices/next-number"
+					hx-trigger="change"
+					hx-target="#number-seq-field"
+					hx-swap="outerHTML"
+					hx-include="[name='number_year']"
+				}
+			>
 				<option value="">Select a client</option>
 				for _, c := range clients {
 					<option value={ fmt.Sprintf("%d", c.ID) } { isSelected(c.ID == invoice.ClientID) }>
@@ -407,6 +433,28 @@ templ InvoiceForm(clients []store.Client, services []store.Service, invoice stor
 				}
 			</select>
 		</div>
+
+		if numberEditable {
+			<div class="form-row">
+				<div class="form-group">
+					<label for="number_year">Invoice Year</label>
+					<input type="number" id="number_year" name="number_year" value={ fmt.Sprintf("%d", numberYear) }
+						hx-get="/invoices/next-number"
+						hx-trigger="change"
+						hx-target="#number-seq-field"
+						hx-swap="outerHTML"
+						hx-include="[name='client_id']"
+					/>
+				</div>
+				@InvoiceNumberSeqField(numberSeq)
+			</div>
+			<small>Invoice number defaults to the next one in sequence for this client. Override either field if you need a different number.</small>
+		} else {
+			<div class="form-group">
+				<label for="number">Invoice Number</label>
+				<input type="text" id="number" name="number" value={ invoice.Number } readonly/>
+			</div>
+		}
 
 		<div class="form-row">
 			<div class="form-group">
@@ -457,7 +505,24 @@ templ InvoiceForm(clients []store.Client, services []store.Service, invoice stor
 	</form>
 }
 
-// InvoiceLineRow renders a single line item row for the form.
+// InvoiceNumberSeqField renders the invoice sequence-number input, pre-filled
+// with the next auto-generated value for the selected client/year (overridable
+// by the user). Wrapped so it can be swapped independently via HTMX when the
+// client or year changes.
+templ InvoiceNumberSeqField(seq int) {
+	<div class="form-group" id="number-seq-field">
+		<label for="number_seq">Invoice Number</label>
+		<input type="number" min="1" id="number_seq" name="number_seq" value={ fmt.Sprintf("%d", seq) }/>
+	</div>
+}
+
+// InvoiceNumberSeqPartial renders the sequence-number field for HTMX refresh
+// when the selected client or year changes (both affect the next number).
+templ InvoiceNumberSeqPartial(seq int) {
+	@InvoiceNumberSeqField(seq)
+}
+
+
 templ InvoiceLineRow(index int, line store.InvoiceLine, services []store.Service) {
 	<div class="line-item" id={ fmt.Sprintf("line-item-%d", index) }>
 		<div class="form-group">
@@ -484,7 +549,8 @@ templ InvoiceLineRowPartial(index int, services []store.Service) {
 }
 
 // NewInvoicePage renders a blank invoice form for creating an invoice.
-templ NewInvoicePage(clients []store.Client, services []store.Service, invoice store.Invoice) {
+// numberYear and numberSeq pre-fill the invoice number defaults.
+templ NewInvoicePage(clients []store.Client, services []store.Service, invoice store.Invoice, numberYear, numberSeq int) {
 	<!DOCTYPE html>
 	<html lang="en">
 		<head>
@@ -498,7 +564,7 @@ templ NewInvoicePage(clients []store.Client, services []store.Service, invoice s
 			@Nav()
 			<main class="container">
 				<h1>Create Invoice</h1>
-				@InvoiceForm(clients, services, invoice, "/invoices")
+				@InvoiceForm(clients, services, invoice, "/invoices", true, numberYear, numberSeq)
 			</main>
 		</body>
 	</html>
@@ -606,7 +672,7 @@ templ EditInvoicePage(clients []store.Client, services []store.Service, inv stor
 			@Nav()
 			<main class="container">
 				<h1>Edit Invoice { inv.Number }</h1>
-				@InvoiceForm(clients, services, inv, fmt.Sprintf("/invoices/%d", inv.ID))
+				@InvoiceForm(clients, services, inv, fmt.Sprintf("/invoices/%d", inv.ID), false, 0, 0)
 			</main>
 		</body>
 	</html>

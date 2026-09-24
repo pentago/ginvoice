@@ -95,6 +95,7 @@ func main() {
 	protected.HandleFunc("GET /invoices", ih.List)
 	protected.HandleFunc("GET /invoices/new", ih.New)
 	protected.HandleFunc("GET /invoices/line-item", ih.LineItem)
+	protected.HandleFunc("GET /invoices/next-number", ih.NextNumber)
 	protected.HandleFunc("POST /invoices", ih.Create)
 	protected.HandleFunc("GET /invoices/{id}", ih.View)
 	protected.HandleFunc("GET /invoices/{id}/edit", ih.Edit)
@@ -150,7 +151,6 @@ func openDB(path string) (*sql.DB, error) {
 
 	return db, nil
 }
-
 
 func writeJSON(w http.ResponseWriter, statusCode int, body string) {
 	w.Header().Set("Content-Type", "application/json")
