@@ -1,5 +1,3 @@
-@~/.config/opencode/AGENTS.md
-
 # ginvoice
 
 Self-hosted invoicing app. Single Go binary, SQLite, HTMX + templ, PDF export, Resend email.
