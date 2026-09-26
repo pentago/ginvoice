@@ -13,7 +13,6 @@ import (
 	"ginvoice/internal/store"
 )
 
-
 func TestDownloadFamilyFonts_PartialFailureLeavesNoCache(t *testing.T) {
 	origDir := os.Getenv("GINVOICE_DATA_DIR")
 	ttf, err := fontFiles.ReadFile("fonts/DejaVuSans.ttf")

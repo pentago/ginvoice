@@ -12,19 +12,19 @@ import (
 //
 // Three modes (all env-driven, decided at startup):
 //
-//   (a) Open mode: both trustedCIDR and headerName are empty.
-//       Middleware is a no-op — all requests pass through.
-//       Intended for localhost / trusted LAN.
+//	(a) Open mode: both trustedCIDR and headerName are empty.
+//	    Middleware is a no-op — all requests pass through.
+//	    Intended for localhost / trusted LAN.
 //
-//   (b) Auth mode: headerName is set.
-//       Determine the peer IP from r.RemoteAddr ONLY (never X-Forwarded-For).
-//       Parse trustedCIDRs (comma-separated); empty CIDR list = trust nobody.
-//       If peer is NOT in a trusted CIDR  → 403 Forbidden.
-//       If peer IS trusted but headerName is missing/empty in request → 401 Unauthorized.
-//       Otherwise → pass through (authenticated; identity not stored).
+//	(b) Auth mode: headerName is set.
+//	    Determine the peer IP from r.RemoteAddr ONLY (never X-Forwarded-For).
+//	    Parse trustedCIDRs (comma-separated); empty CIDR list = trust nobody.
+//	    If peer is NOT in a trusted CIDR  → 403 Forbidden.
+//	    If peer IS trusted but headerName is missing/empty in request → 401 Unauthorized.
+//	    Otherwise → pass through (authenticated; identity not stored).
 //
-//   (c) Misconfiguration: trustedCIDR is set but headerName is empty.
-//       Log a startup warning; treat as open mode (explicit, not silent).
+//	(c) Misconfiguration: trustedCIDR is set but headerName is empty.
+//	    Log a startup warning; treat as open mode (explicit, not silent).
 //
 // /healthz must be excluded from auth and is handled by the caller.
 func Auth(trustedCIDR, headerName string) func(http.Handler) http.Handler {

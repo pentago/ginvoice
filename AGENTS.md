@@ -66,3 +66,8 @@ Requires buildx ≥0.17.0 (BuildKit is the default builder; `# syntax=docker/doc
 - **BuildKit cache mounts**: Dockerfile uses `--mount=type=cache` on the build RUN for `/go/pkg/mod` and `/root/.cache/go-build`. Speeds up rebuilds; contents don't enter the image.
 - **Resource limits**: compose sets `cpus: "0.1"` and `memory: 256M`.
 - **Loopback only**: compose binds ports to `127.0.0.1:8080:8080`, not `0.0.0.0`.
+
+## CI
+
+- `.github/workflows/ci.yml` runs on every push/PR to `main` and on `v*` tags: `fmt` (gofmt), `templ` (regenerates and fails on drift — keep `*_templ.go` committed in sync), `vet`, `vulncheck` (govulncheck), `lint` (golangci-lint, config in `.golangci.yml`, `only-new-issues: true` so pre-existing findings don't block), `test`, then `build`.
+- On push to `main` or a `v*` tag (not PRs), a final `docker` job builds the image and pushes to `ghcr.io/pentago/ginvoice`, tagged by branch/semver/short-SHA plus `latest` on `main`.

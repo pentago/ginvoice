@@ -12,7 +12,7 @@ type TemplateData struct {
 	CompanyName         string
 	CompanyWebsite      string
 	CompanyPhone        string
-	CompanyAddressLine1       string
+	CompanyAddressLine1 string
 	CompanyAddressLine2 string
 	CompanyPostalCode   string
 	CompanyCity         string
@@ -32,7 +32,7 @@ func TemplateDataFor(inv store.Invoice, c store.Company) TemplateData {
 		CompanyName:         c.Name,
 		CompanyWebsite:      c.Website,
 		CompanyPhone:        c.Phone,
-		CompanyAddressLine1:       c.AddressLine1,
+		CompanyAddressLine1: c.AddressLine1,
 		CompanyAddressLine2: c.AddressLine2,
 		CompanyPostalCode:   c.PostalCode,
 		CompanyCity:         c.City,

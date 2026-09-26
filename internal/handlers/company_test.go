@@ -95,7 +95,7 @@ func TestCompany_SaveAndShowRoundTrip(t *testing.T) {
 
 	fields := map[string]string{
 		"name":                 "Acme GmbH",
-		"address_line1":               "Hauptstr. 1",
+		"address_line1":        "Hauptstr. 1",
 		"postal_code":          "10115",
 		"city":                 "Berlin",
 		"country":              "Germany",
@@ -228,7 +228,7 @@ func TestCompany_InvalidPdfConfigRejected(t *testing.T) {
 	db, h := newCompanyTestEnv(t)
 
 	for _, tc := range []struct{ name, field, val string }{
-		{"bad color", "accent_color", "blue"},   // not #RRGGBB
+		{"bad color", "accent_color", "blue"},    // not #RRGGBB
 		{"bad font", "font_family", "Bad Font!"}, // invalid font name chars
 	} {
 		rec := postSettings(t, h, map[string]string{"name": "Acme GmbH", tc.field: tc.val}, "", nil)
@@ -267,7 +267,8 @@ func TestSettings_SaveWithFonts(t *testing.T) {
 		case "/css2":
 			css := "@font-face { font-family: 'Test Family'; font-weight: 400; src: url(" + srv.URL + "/test-family-400.ttf); }" +
 				"@font-face { font-family: 'Test Family'; font-weight: 700; src: url(" + srv.URL + "/test-family-700.ttf); }"
-			w.Header().Set("Content-Type", "text/css"); w.Write([]byte(css))
+			w.Header().Set("Content-Type", "text/css")
+			_, _ = w.Write([]byte(css))
 		case "/test-family-400.ttf", "/test-family-700.ttf":
 			w.Write(ttf)
 		default:

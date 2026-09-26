@@ -260,7 +260,7 @@ func TestParseCents(t *testing.T) {
 		{"19.99", 1999},
 		{"20", 2000},
 		{"0.10", 10},
-		{"0.005", 1},   // rounds half away from zero
+		{"0.005", 1}, // rounds half away from zero
 		{"19.995", 2000},
 		{"garbage", 0},
 		{"", 0},
@@ -305,4 +305,3 @@ func seedInvoiceLineForService(t *testing.T, db *sql.DB, serviceID int64) {
 		t.Fatalf("seed invoice line: %v", err)
 	}
 }
-
