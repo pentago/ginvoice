@@ -290,6 +290,13 @@ templ SettingsForm(c store.Company, cfg pdf.TemplateConfig, fonts []string, save
 				}
 			/> Show notes section on invoices
 		</label>
+		<label>
+			<input type="checkbox" name="cc_invoice_emails"
+				if c.CCInvoiceEmails {
+					checked
+				}
+			/> CC invoice emails to the company email
+		</label>
 		<button type="submit">Save</button>
 	</form>
 }

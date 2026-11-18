@@ -583,7 +583,11 @@ func (h *InvoicesHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 	tmplData := email.TemplateDataFor(inv, company)
 	subject := email.RenderTemplate(subjectTmpl, tmplData)
 	htmlBody := email.RenderTemplate(bodyTmpl, tmplData)
-	if err := h.Sender.Send(r.Context(), inv.Client.Email, subject, htmlBody, inv.Number+".pdf", raw); err != nil {
+	var cc []string
+	if company.CCInvoiceEmails && company.Email != "" && !strings.EqualFold(company.Email, inv.Client.Email) {
+		cc = []string{company.Email}
+	}
+	if err := h.Sender.Send(r.Context(), inv.Client.Email, cc, subject, htmlBody, inv.Number+".pdf", raw); err != nil {
 		log.Printf("send invoice %d email to %s: %v", id, inv.Client.Email, err)
 		writeEmailAlert(w, "error", "email send failed: "+err.Error())
 		return
@@ -597,9 +601,11 @@ func (h *InvoicesHandler) SendEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `<div class="alert alert-success">Email sent to %s</div>`, html.EscapeString(inv.Client.Email))
+	msg := "Email sent to " + inv.Client.Email
+	if cc != nil {
+		msg += " (cc " + company.Email + ")"
+	}
+	writeEmailAlert(w, "success", msg)
 	fmt.Fprint(w, `<span id="status-badge" class="badge badge-sent" hx-swap-oob="outerHTML">sent</span>`)
 	fmt.Fprint(w, `<span id="email-btn" hx-swap-oob="outerHTML"></span>`)
 }

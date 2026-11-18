@@ -32,6 +32,7 @@ type Company struct {
 	DefaultEmailBody    string
 	InvoiceNotes        string
 	PdfConfig           string
+	CCInvoiceEmails     bool
 	CreatedAt           string
 	UpdatedAt           string
 }
@@ -39,8 +40,8 @@ type Company struct {
 func UpsertCompany(db *sql.DB, c Company) error {
 	_, err := db.Exec(`
 		INSERT INTO companies (id, name, owner_first_name, owner_last_name, website, address_line1, address_line2, postal_code, city, state, country, email, phone, logo_data, tax_id, iban,
-			default_tax_rate, default_email_subject, default_email_body, invoice_notes, pdf_config, updated_at)
-		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+			default_tax_rate, default_email_subject, default_email_body, invoice_notes, pdf_config, cc_invoice_emails, updated_at)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, owner_first_name=excluded.owner_first_name, owner_last_name=excluded.owner_last_name,
 			website=excluded.website, address_line1=excluded.address_line1, address_line2=excluded.address_line2,
@@ -53,10 +54,11 @@ func UpsertCompany(db *sql.DB, c Company) error {
 			default_email_body=excluded.default_email_body,
 			invoice_notes=excluded.invoice_notes,
 			pdf_config=excluded.pdf_config,
+			cc_invoice_emails=excluded.cc_invoice_emails,
 			updated_at=excluded.updated_at`,
 		c.Name, c.OwnerFirstName, c.OwnerLastName, c.Website, c.AddressLine1, c.AddressLine2, c.PostalCode, c.City, c.State, c.Country,
 		c.Email, c.Phone, c.LogoData, c.TaxID, c.IBAN,
-		c.DefaultTaxRateBPS, c.DefaultEmailSubject, c.DefaultEmailBody, c.InvoiceNotes, c.PdfConfig)
+		c.DefaultTaxRateBPS, c.DefaultEmailSubject, c.DefaultEmailBody, c.InvoiceNotes, c.PdfConfig, c.CCInvoiceEmails)
 	return err
 }
 
@@ -64,11 +66,11 @@ func GetCompany(db *sql.DB) (Company, bool, error) {
 	var c Company
 	var ownerFirst, ownerLast, website, logoData, emailSubj, emailBody, invoiceNotes, pdfCfg sql.NullString
 	err := db.QueryRow(`SELECT id, name, owner_first_name, owner_last_name, website, address_line1, address_line2, postal_code, city, state, country, email, phone, logo_data, tax_id, iban,
-		default_tax_rate, default_email_subject, default_email_body, invoice_notes, pdf_config, created_at, updated_at
+		default_tax_rate, default_email_subject, default_email_body, invoice_notes, pdf_config, cc_invoice_emails, created_at, updated_at
 		FROM companies WHERE id=1`).Scan(
 		&c.ID, &c.Name, &ownerFirst, &ownerLast, &website, &c.AddressLine1, &c.AddressLine2, &c.PostalCode, &c.City, &c.State, &c.Country,
 		&c.Email, &c.Phone, &logoData, &c.TaxID, &c.IBAN,
-		&c.DefaultTaxRateBPS, &emailSubj, &emailBody, &invoiceNotes, &pdfCfg, &c.CreatedAt, &c.UpdatedAt)
+		&c.DefaultTaxRateBPS, &emailSubj, &emailBody, &invoiceNotes, &pdfCfg, &c.CCInvoiceEmails, &c.CreatedAt, &c.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return Company{}, false, nil
 	}

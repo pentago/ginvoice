@@ -400,3 +400,44 @@ func TestSettings_LegacyConfigPrefillsForm(t *testing.T) {
 		t.Errorf("show_notes checkbox should be unchecked; body: %s", rec.Body.String())
 	}
 }
+
+// S9: the CC checkbox is stored true when checked and false when absent.
+func TestCompany_CCInvoiceEmailsSaved(t *testing.T) {
+	db, h := newCompanyTestEnv(t)
+
+	for _, tc := range []struct {
+		checked bool
+	}{{true}, {false}} {
+		fields := map[string]string{"name": "Acme", "email": "billing@acme.example"}
+		if tc.checked {
+			fields["cc_invoice_emails"] = "on"
+		}
+		rec := postSettings(t, h, fields, "", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("POST /company status = %d; body: %s", rec.Code, rec.Body.String())
+		}
+		c, _, err := store.GetCompany(db)
+		if err != nil {
+			t.Fatalf("GetCompany: %v", err)
+		}
+		if c.CCInvoiceEmails != tc.checked {
+			t.Errorf("cc_invoice_emails = %v, want %v", c.CCInvoiceEmails, tc.checked)
+		}
+	}
+}
+
+// S10: CC checked with an empty company email is rejected and nothing is saved.
+func TestCompany_CCWithoutEmailRejected(t *testing.T) {
+	db, h := newCompanyTestEnv(t)
+
+	rec := postSettings(t, h, map[string]string{"name": "Acme", "email": "  ", "cc_invoice_emails": "on"}, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /company status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "set a company email to CC invoice emails") {
+		t.Errorf("body missing validation error; body: %s", rec.Body.String())
+	}
+	if _, ok, err := store.GetCompany(db); err != nil || ok {
+		t.Errorf("GetCompany ok=%v err=%v, want no row saved", ok, err)
+	}
+}

@@ -74,6 +74,7 @@ func (h *CompanyHandler) SaveSettings(w http.ResponseWriter, r *http.Request) {
 		DefaultEmailSubject: r.FormValue("default_email_subject"),
 		DefaultEmailBody:    r.FormValue("default_email_body"),
 		InvoiceNotes:        r.FormValue("invoice_notes"),
+		CCInvoiceEmails:     r.FormValue("cc_invoice_emails") != "",
 	}
 
 	cfg, err := parsePdfConfigForm(r)
@@ -94,6 +95,11 @@ func (h *CompanyHandler) SaveSettings(w http.ResponseWriter, r *http.Request) {
 	// handle logo upload; keep existing logo when no new file is posted
 	existing, _, _ := store.GetCompany(h.DB)
 	c.LogoData = existing.LogoData
+
+	if c.CCInvoiceEmails && strings.TrimSpace(c.Email) == "" {
+		templ.Handler(views.SettingsForm(c, cfg, pdf.FontCatalog(), "set a company email to CC invoice emails")).ServeHTTP(w, r)
+		return
+	}
 
 	if err := pdf.ValidateConfig(c.PdfConfig); err != nil {
 		// 200 so htmx swaps in the form with the error (htmx ignores 4xx by default)

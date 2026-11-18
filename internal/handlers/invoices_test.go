@@ -641,3 +641,49 @@ func TestEmail_ErrorOnSendFailure(t *testing.T) {
 		t.Errorf("sent_at = %q, want empty on failed send", inv.SentAt)
 	}
 }
+
+// S5: CC enabled with a company email → company is CC'd and the alert says so.
+func TestEmail_CCCompanyWhenEnabled(t *testing.T) {
+	t.Setenv("GINVOICE_DATA_DIR", fontTestDataDir)
+	srv, db, fake := newEmailTestServer(t, "re_test_key")
+	id := seedDraftInvoice(t, db, "client@example.com")
+	c, _, err := store.GetCompany(db)
+	if err != nil {
+		t.Fatalf("get company: %v", err)
+	}
+	c.CCInvoiceEmails = true
+	if err := store.UpsertCompany(db, c); err != nil {
+		t.Fatalf("enable cc: %v", err)
+	}
+
+	resp := postForm(t, srv.URL+fmt.Sprintf("/invoices/%d/email", id), url.Values{})
+	body, _ := io.ReadAll(resp.Body)
+	if len(fake.Calls) != 1 {
+		t.Fatalf("sender calls = %d, want 1; body: %s", len(fake.Calls), body)
+	}
+	if got := fake.Calls[0].CC; len(got) != 1 || got[0] != "test@company.com" {
+		t.Errorf("cc = %v, want [test@company.com]", got)
+	}
+	if !strings.Contains(string(body), "Email sent to client@example.com (cc test@company.com)") {
+		t.Errorf("body = %q, want success alert mentioning cc", body)
+	}
+}
+
+// S6: CC disabled → no CC on the send.
+func TestEmail_NoCCWhenDisabled(t *testing.T) {
+	t.Setenv("GINVOICE_DATA_DIR", fontTestDataDir)
+	srv, db, fake := newEmailTestServer(t, "re_test_key")
+	id := seedDraftInvoice(t, db, "client@example.com")
+
+	resp := postForm(t, srv.URL+fmt.Sprintf("/invoices/%d/email", id), url.Values{})
+	body, _ := io.ReadAll(resp.Body)
+	if len(fake.Calls) != 1 {
+		t.Fatalf("sender calls = %d, want 1; body: %s", len(fake.Calls), body)
+	}
+	if got := fake.Calls[0].CC; got != nil {
+		t.Errorf("cc = %v, want nil", got)
+	}
+	if strings.Contains(string(body), "(cc ") {
+		t.Errorf("body = %q, want no cc in alert", body)
+	}
+}
