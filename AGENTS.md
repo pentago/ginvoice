@@ -25,7 +25,7 @@ request → cmd/app/main.go mux
 - **PDF**: `pdf.RenderInvoiceWithConfig(inv, company, pdf.LoadConfig(company.PdfConfig))` serves download, save (`/data/invoices/<number>.pdf`) and email. `internal/pdf/invoice.html` is a `text/template`, so nothing is auto-escaped: `buildInvoiceView` escapes every user string, and new fields must be escaped there. `/data/invoice_template.html` overrides the layout; any parse, execute or render error is logged and the built-in template is used. A global `renderMu` serializes renders.
 - **PDF style**: stored as JSON in `companies.pdf_config`. Saving settings runs `parsePdfConfigForm` → `pdf.ValidateConfig` (`DisallowUnknownFields` + regexes). `pdf.LoadConfig` overlays defaults and never fails.
 - **Fonts**: the embedded DejaVu TTFs are extracted once per process to `$GINVOICE_DATA_DIR/fonts` (`sync.Once`, so a failure sticks until restart). Google Fonts (static TrueType only) download synchronously inside the settings POST; if any download fails, nothing is saved. `reloadFonts` then swaps the global font config. The catalog is cached in `$GINVOICE_DATA_DIR/fonts-catalog.json` for 7 days. Invalid font names silently fall back section → family → `DejaVu Sans` (`resolveFont`).
-- **Email**: `email.Sender` is an interface. `ResendSender` is a hand-written HTTP client (not the official SDK, no timeout). Subject and body fall back client → company → `email.DefaultSubject`/`DefaultBody`. `email.RenderTemplate` fills placeholders from `email.TemplateDataFor`: `{{companyName}}`, `{{companyNameLink}}`, `{{companyWebsite}}`, `{{companyURL}}`, `{{companyPhone}}`, `{{companyAddressLine1}}`, `{{companyAddressLine2}}`, `{{companyPostalCode}}`, `{{companyCity}}`, `{{companyState}}`, `{{companyCountry}}`, `{{ownerFirstName}}`, `{{ownerLastName}}`, `{{invoiceNumber}}`, `{{clientName}}`, `{{invoiceTotal}}`, `{{invoiceDueDate}}`.
+- **Email**: `email.Sender` is an interface. `ResendSender` is a hand-written HTTP client (not the official SDK, no timeout). Subject and body fall back client → company → `email.DefaultSubject`/`DefaultBody`. When the company setting `cc_invoice_emails` is on, invoice sends CC `companies.email`, unless it equals the client's address. `email.RenderTemplate` fills placeholders from `email.TemplateDataFor`: `{{companyName}}`, `{{companyNameLink}}`, `{{companyWebsite}}`, `{{companyURL}}`, `{{companyPhone}}`, `{{companyAddressLine1}}`, `{{companyAddressLine2}}`, `{{companyPostalCode}}`, `{{companyCity}}`, `{{companyState}}`, `{{companyCountry}}`, `{{ownerFirstName}}`, `{{ownerLastName}}`, `{{invoiceNumber}}`, `{{clientName}}`, `{{invoiceTotal}}`, `{{invoiceDueDate}}`.
 - **Invoice notes**: fall back client → company → `store.DefaultInvoiceNotes`, go through `email.RenderTemplate`, then get HTML-escaped.
 - **Auth** (`internal/middleware/auth.go`): with no auth env vars, everything is open. When `GINVOICE_AUTH_HEADER` is set, the peer IP (`RemoteAddr` only, never `X-Forwarded-For`) must be in `GINVOICE_TRUSTED_PROXY_CIDR` (else 403; an empty list trusts nobody), and the header must be non-empty (else 401; its value isn't checked). A CIDR without a header logs a startup warning and stays open.
 
@@ -55,7 +55,7 @@ GINVOICE_DATA_DIR=$(mktemp -d) go test ./internal/handlers/ -run TestEmail_   # 
 gofmt -l .                                                        # CI fails on any output
 go vet ./...
 GOFLAGS=-mod=mod go run github.com/a-h/templ/cmd/templ generate   # after every .templ edit; go.mod-pinned templ, never @latest
-go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run   # CI's version; not installed locally
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run   # CI's version; not installed locally
 go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 GINVOICE_DATA_DIR=/tmp/ginvoice go run ./cmd/app --database /tmp/ginvoice/ginvoice.db   # local run on :8080
 docker compose up -d --build                                      # first: mkdir -p ./data && chown 1000:1000 ./data
@@ -90,10 +90,10 @@ There's no Makefile, no scripts and no `//go:generate`. Never point a local run 
 
 ## Runtime/Tooling Preferences
 
-- **Go 1.27** (`go.mod` `go 1.27.0`). Docker uses `golang:1.27.0-alpine` + `GOTOOLCHAIN=local`; CI reads the version from `go.mod`.
+- **Go 1.27** (`go.mod` `go 1.27.4`). Docker uses `golang:1.27.4-alpine` + `GOTOOLCHAIN=local`; CI's setup-go installs exactly the `go.mod` version. govulncheck flags stdlib CVEs fixed in later patches, so bump `go.mod`'s `go` line and the Dockerfile's `GO_VER` together to the latest patch release.
 - **`CGO_ENABLED=0` always**: every dependency is pure Go (`modernc.org/sqlite`, `benoitkugler/go-weasyprint`/`webrender`). Don't add CGO, headless-browser or system-library dependencies.
 - **PDF engine**: must use the Pango font configuration, because the gotext engine's text drawing is unimplemented upstream. Variable fonts and TTC collections silently render invisible text.
-- **Modules**: there's no `vendor/` (gitignored). `go build`/`go test` run in default readonly mode, so dependency drift fails fast. `GOFLAGS=-mod=mod` is only for `templ generate`.
+- **Modules**: there's no `vendor/` (gitignored). `go build`/`go test` run in default readonly mode, so dependency drift fails fast. `GOFLAGS=-mod=mod` is only for `templ generate`. That run adds `go.sum` lines for `cmd/templ` that `go mod tidy` removes, and CI's drift check diffs the whole tree. So after `go mod tidy`, always rerun `templ generate` before committing.
 - **Local tools**: only `go`/`gofmt` are installed. templ, golangci-lint and govulncheck run via `go run` (see Development Commands).
 - **Env vars** (the DB path is only the `--database` flag):
 
@@ -125,7 +125,7 @@ There's no Makefile, no scripts and no `//go:generate`. Never point a local run 
   - `templ`: regenerate, then `git diff --quiet`. That check misses a new untracked `*_templ.go`, so commit it.
   - `vet`
   - `vulncheck`
-  - `lint`: golangci-lint v2.14.0, standard linters, `only-new-issues: true`
+  - `lint`: golangci-lint v2.15.0, standard linters, `only-new-issues: true`
   - `test`: `go test ./... -count=1`
   - `build`
   - `docker`, only on push to `main` or a `v*` tag: pushes `ghcr.io/pentago/ginvoice` with branch, semver and short-SHA tags, plus `latest` on `main`.

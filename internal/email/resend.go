@@ -22,6 +22,7 @@ type ResendSender struct {
 type resendPayload struct {
 	From        string             `json:"from"`
 	To          []string           `json:"to"`
+	CC          []string           `json:"cc,omitempty"`
 	Subject     string             `json:"subject"`
 	HTML        string             `json:"html"`
 	Attachments []resendAttachment `json:"attachments,omitempty"`
@@ -40,10 +41,11 @@ func (r *ResendSender) baseURL() string {
 	return r.BaseURL
 }
 
-func (r *ResendSender) Send(ctx context.Context, to, subject, html, attachmentName string, attachmentBytes []byte) error {
+func (r *ResendSender) Send(ctx context.Context, to string, cc []string, subject, html, attachmentName string, attachmentBytes []byte) error {
 	payload := resendPayload{
 		From:    r.From,
 		To:      []string{to},
+		CC:      cc,
 		Subject: subject,
 		HTML:    html,
 	}

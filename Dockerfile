@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VER=1.27.0
+ARG GO_VER=1.27.4
 
 FROM golang:${GO_VER}-alpine AS build
 WORKDIR /src

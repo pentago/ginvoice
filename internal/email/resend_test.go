@@ -29,7 +29,7 @@ func TestResendSender_SendsCorrectRequest(t *testing.T) {
 	}
 
 	pdfBytes := []byte("%PDF-1.7 test")
-	err := sender.Send(context.Background(), "client@example.com", "Invoice INV-001", "<p>see attached</p>", "INV-001.pdf", pdfBytes)
+	err := sender.Send(context.Background(), "client@example.com", []string{"me@example.com"}, "Invoice INV-001", "<p>see attached</p>", "INV-001.pdf", pdfBytes)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -50,6 +50,11 @@ func TestResendSender_SendsCorrectRequest(t *testing.T) {
 	toArr := payload["to"].([]interface{})
 	if len(toArr) != 1 || toArr[0] != "client@example.com" {
 		t.Errorf("to = %v, want [client@example.com]", toArr)
+	}
+
+	ccArr, _ := payload["cc"].([]interface{})
+	if len(ccArr) != 1 || ccArr[0] != "me@example.com" {
+		t.Errorf("cc = %v, want [me@example.com]", payload["cc"])
 	}
 
 	if got := payload["subject"]; got != "Invoice INV-001" {
@@ -98,8 +103,29 @@ func TestResendSender_Non2xxIsError(t *testing.T) {
 	defer srv.Close()
 
 	sender := &ResendSender{APIKey: "bad", BaseURL: srv.URL}
-	err := sender.Send(context.Background(), "to@x.com", "s", "<p>b</p>", "", nil)
+	err := sender.Send(context.Background(), "to@x.com", nil, "s", "<p>b</p>", "", nil)
 	if err == nil {
 		t.Fatal("Send with HTTP 401: err = nil, want error")
+	}
+}
+
+// S6: a nil cc list omits the cc key from the JSON body.
+func TestResendSender_NilCCOmitsKey(t *testing.T) {
+	var body []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ = io.ReadAll(r.Body)
+	}))
+	defer srv.Close()
+
+	sender := &ResendSender{APIKey: "k", BaseURL: srv.URL}
+	if err := sender.Send(context.Background(), "to@x.com", nil, "s", "<p>b</p>", "", nil); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	if _, ok := payload["cc"]; ok {
+		t.Errorf("cc key present with nil cc: %s", body)
 	}
 }
